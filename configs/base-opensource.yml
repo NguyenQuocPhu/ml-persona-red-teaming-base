@@ -1,58 +1,61 @@
 ########## CONFIGURATION ##########
 
-
 # Archive Configuration
 archive: 
   path: [./configs/categories/categories.txt, ./configs/styles/styles.txt]
   descriptor: [Risk Category, Attack Style]
-
-
+memory:
+  path_top_prompts:
+  path_bot_prompts:
 # Seed dataset
 sample_prompts: ./data/do-not-answer.json
-
 
 # Target LLM Configuration
 target_llm:
   type_: vllm
-
   model_kwargs:
-    model: Qwen/Qwen2.5-7B-Instruct
+    model: Qwen/Qwen1.5-1.8B-Chat
     trust_remote_code: True
     max_model_len: 2048
+    # Tăng lên 40% VRAM
     gpu_memory_utilization: 0.5
-
+    dtype: half
+    swap_space: 8
+    device: "0"
   sampling_params:
     temperature: 0.6
     top_p: 0.9
     max_tokens: 1024
 
-
 # Mutator LLM Configuration
 mutator_llm: 
   type_: vllm
-  
   model_kwargs:
     model: Qwen/Qwen2.5-3B-Instruct
     trust_remote_code: True
-    gpu_memory_utilization: 0.3
+    # Tăng lên 43% VRAM
+    gpu_memory_utilization: 0.9
     max_model_len: 2048
-
+    dtype: half
+    swap_space: 8
+    device: "1"
   sampling_params:
     temperature: 0.7
     top_p: 0.9
     max_tokens: 128
 
-
 # Fitness LLM Configuration
 fitness_llm: 
   type_: vllm
-
   model_kwargs:
     model: meta-llama/Llama-Guard-3-1B
     trust_remote_code: True
-    gpu_memory_utilization: 0.15
+    # Giảm xuống 14% VRAM
+    gpu_memory_utilization: 0.4
     max_model_len: 4096
-
+    dtype: half
+    swap_space: 8
+    device: "0"
   sampling_params:
     temperature: 0.7
     top_p: 0.9
