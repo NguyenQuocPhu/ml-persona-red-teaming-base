@@ -316,7 +316,6 @@ def merge_config_with_args(config, args):
     
     # Set values from config first
     merged_args.num_samples = config.num_samples
-    merged_args.n_cells = config.n_cells
     merged_args.max_iters = config.max_iters
     merged_args.sim_threshold = config.sim_threshold
     merged_args.num_mutations = config.num_mutations
