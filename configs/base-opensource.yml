@@ -22,6 +22,7 @@ target_llm:
     dtype: half
     swap_space: 8
     device: "0"
+    enforce_eager: True
   sampling_params:
     temperature: 0.6
     top_p: 0.9
@@ -39,6 +40,7 @@ mutator_llm:
     dtype: half
     swap_space: 8
     device: "1"
+    enforce_eager: True
   sampling_params:
     temperature: 0.7
     top_p: 0.9
@@ -56,6 +58,7 @@ fitness_llm:
     dtype: half
     swap_space: 8
     device: "0"
+    enforce_eager: True
   sampling_params:
     temperature: 0.7
     top_p: 0.9
