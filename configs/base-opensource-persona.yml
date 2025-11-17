@@ -1,0 +1,82 @@
+log_dir: ./logs-official-rainbow-persona-users
+algorithm: rainbowplus
+method: combined-fit
+
+mutation_strategy: combined-fit
+persona_config: configs/personas/users.yml
+persona_type: RegularAIUsers
+
+# Target LLM Configuration
+target_llm:
+  type_: vllm
+  model_kwargs:
+    model: Qwen/Qwen1.5-1.8B-Chat
+    trust_remote_code: True
+    max_model_len: 2048
+    # Tăng lên 40% VRAM
+    gpu_memory_utilization: 0.5
+    dtype: half
+    swap_space: 8
+    device: "0"
+    enforce_eager: True
+  sampling_params:
+    temperature: 0.6
+    top_p: 0.9
+    max_tokens: 1024
+
+# Mutator LLM Configuration
+mutator_llm: 
+  type_: vllm
+  model_kwargs:
+    model: Qwen/Qwen2.5-3B-Instruct
+    trust_remote_code: True
+    # Tăng lên 43% VRAM
+    gpu_memory_utilization: 0.9
+    max_model_len: 2048
+    dtype: half
+    swap_space: 8
+    device: "1"
+    enforce_eager: True
+  sampling_params:
+    temperature: 0.7
+    top_p: 0.9
+    max_tokens: 128
+
+# Fitness LLM Configuration
+fitness_llm: 
+  type_: vllm
+  model_kwargs:
+    model: meta-llama/Llama-Guard-3-1B
+    trust_remote_code: True
+    # Giảm xuống 14% VRAM
+    gpu_memory_utilization: 0.4
+    max_model_len: 4096
+    dtype: half
+    swap_space: 8
+    device: "0"
+    enforce_eager: True
+  sampling_params:
+    temperature: 0.7
+    top_p: 0.9
+    max_tokens: 16
+    logprobs: 1
+
+sample_prompts: ./data/harmbench.json
+num_samples: 150
+max_iters: 200
+sim_threshold: 0.6
+num_mutations: 10
+fitness_threshold: 0.6
+log_interval: 50
+shuffle: true
+
+# Include categories, styles, and personas in the archive
+archive:
+  path: 
+    - ./configs/categories/categories.txt
+    - ./configs/styles/styles.txt
+    - ./configs/personas/users.yml
+  descriptor:
+    - Category
+    - Style
+    - Persona
