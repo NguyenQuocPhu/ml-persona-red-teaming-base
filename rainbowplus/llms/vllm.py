@@ -8,11 +8,28 @@ class vLLM(BaseLLM):
     def __init__(self, model_kwargs: dict):
         self.model_kwargs = model_kwargs.copy()
         
-        # Xóa key 'device' không chuẩn để vLLM không báo lỗi
-        self.model_kwargs.pop("device", None) 
+        # --- BẮT ĐẦU PHẦN CODE SỬA ĐỔI ---
+        # 1. Lấy device từ config, mặc định là '0' (GPU đầu tiên)
+        device_id = self.model_kwargs.pop("device", "0")
+
+        # 2. Lấy biến môi trường CUDA_VISIBLE_DEVICES hiện tại (nếu có)
+        original_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
+
+        # 3. TẠM THỜI "bịt mắt" script, chỉ cho nó thấy GPU chúng ta muốn
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)
         
-        # Khởi tạo LLM bình thường
-        self.llm = LLM(**self.model_kwargs)
+        try:
+            # 4. Khởi tạo vLLM. Bây giờ nó sẽ tự động chọn GPU duy nhất nó thấy
+            self.llm = LLM(**self.model_kwargs)
+        finally:
+            # 5. Khôi phục biến môi trường về trạng thái ban đầu
+            #    để không ảnh hưởng đến các model khác.
+            if original_visible_devices is None:
+                if "CUDA_VISIBLE_DEVICES" in os.environ:
+                    del os.environ["CUDA_VISIBLE_DEVICES"]
+            else:
+                os.environ["CUDA_VISIBLE_DEVICES"] = original_visible_devices
+        # --- KẾT THÚC PHẦN CODE SỬA ĐỔI ---
 
     def get_name(self):
         return self.model_kwargs["model"]
