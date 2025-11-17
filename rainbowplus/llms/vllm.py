@@ -1,7 +1,7 @@
 import os
+import torch  # <-- 1. Import torch
 from typing import List
 from vllm import LLM, SamplingParams
-from vllm.config import DeviceConfig  # <-- 1. Import class cấu hình
 from rainbowplus.llms.base import BaseLLM
 
 
@@ -9,29 +9,29 @@ class vLLM(BaseLLM):
     def __init__(self, model_kwargs: dict):
         self.model_kwargs = model_kwargs.copy()
         
-        # --- BẮT ĐẦU CODE SỬA ĐỔI MỚI ---
+        # --- BẮT ĐẦU CODE SỬA ĐỔI LẦN 3 ---
         
-        # 2. Lấy device_id ('0' hoặc '1') từ config của bạn
+        # 2. Lấy device_id ('0' hoặc '1')
         device_id_str = self.model_kwargs.pop("device", "0")
+        device_id_int = int(device_id_str)
 
-        # 3. vLLM yêu cầu một list các ID, nên chúng ta chuyển '1' -> [1]
+        # 3. Lấy device hiện tại (để khôi phục sau)
+        original_device_id = torch.cuda.current_device()
+
         try:
-            device_ids_list = [int(device_id_str)]
-        except ValueError:
-            # Xử lý dự phòng nếu config là "0,1" (dù bạn không dùng)
-            device_ids_list = [int(d.strip()) for d in device_id_str.split(',')]
-
-        # 4. Tạo đối tượng DeviceConfig mà vLLM hiểu
-        device_config = DeviceConfig(device_type="cuda",
-                                     device_ids=device_ids_list)
-
-        # 5. Thêm cấu hình này vào kwargs để vLLM sử dụng
-        self.model_kwargs['device_config'] = device_config
+            # 4. Ra lệnh cho PyTorch đổi GPU active
+            #    Đây là lệnh quan trọng nhất
+            torch.cuda.set_device(device_id_int)
+            
+            # 5. Khởi tạo LLM. Giờ nó sẽ dùng GPU active (GPU 1)
+            self.llm = LLM(**self.model_kwargs)
         
-        # 6. Khởi tạo LLM. Giờ nó sẽ dùng đúng GPU được chỉ định.
-        self.llm = LLM(**self.model_kwargs)
+        finally:
+            # 6. Khôi phục lại device cũ để không ảnh hưởng
+            #    đến các tiến trình khác (nếu có)
+            torch.cuda.set_device(original_device_id)
         
-        # --- KẾT THÚC CODE SỬA ĐỔI MỚI ---
+        # --- KẾT THÚC CODE SỬA ĐỔI LẦN 3 ---
 
     def get_name(self):
         return self.model_kwargs["model"]
