@@ -18,7 +18,7 @@ target_llm:
     trust_remote_code: True
     max_model_len: 2048
     # Tăng lên 40% VRAM
-    gpu_memory_utilization: 0.35
+    gpu_memory_utilization: 0.4
     dtype: half
     swap_space: 8
     device: "0"
@@ -53,7 +53,7 @@ fitness_llm:
     model: meta-llama/Llama-Guard-3-1B
     trust_remote_code: True
     # Giảm xuống 14% VRAM
-    gpu_memory_utilization: 0.25
+    gpu_memory_utilization: 0.5
     max_model_len: 4096
     dtype: half
     swap_space: 8
