@@ -512,8 +512,8 @@ def run_rainbowplus(
         
         # Use default mutator
         prompt_ = MUTATOR_PROMPT.format(
-            risk = descriptor["Risk Category"],
-            style = descriptor["Attack Style"],
+            risk = descriptor["Category"],
+            style = descriptor["Style"],
             # 4. Truyền đúng chuỗi YAML vào đây
             persona_yaml_details = persona_yaml_string, 
             prompt=prompt
