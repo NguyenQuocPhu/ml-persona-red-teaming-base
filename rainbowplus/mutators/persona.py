@@ -842,8 +842,19 @@ class PersonaMutator:
                     logger.warning("Persona được sinh ra không phải là dict, bỏ qua.")
                     continue
                 
-                #
-                new_persona_title = new_persona_details.pop('title', f"evolved_{original_persona_name}_{random.randint(1000, 9999)}")
+                # --- PHẦN TINH CHỈNH (FIX) ---
+                # Lấy title thô (raw)
+                raw_title = new_persona_details.pop('title', f"evolved_{original_persona_name}_{random.randint(1000, 9999)}")
+                
+                # Đảm bảo title là một string
+                if isinstance(raw_title, list):
+                    # Nếu LLM trả về list, nối các phần tử lại
+                    new_persona_title = "_".join(map(str, raw_title))
+                else:
+                    # Nếu là bất cứ thứ gì khác, ép kiểu thành string
+                    new_persona_title = str(raw_title)
+                # --- KẾT THÚC PHẦN TINH CHỈNH ---
+
                 generated_personas.append((new_persona_title, new_persona_details))
 
             except Exception as e:
