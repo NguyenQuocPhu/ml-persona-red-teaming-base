@@ -874,7 +874,7 @@ class PersonaMutator:
             return random.choice(generated_personas)
 
         best_persona = None
-        max_similarity = -float('inf')
+        max_similarity = float('inf')
 
         for (title, details) in generated_personas:
             try:
@@ -883,7 +883,7 @@ class PersonaMutator:
                 
                 sim = cosine_similarity(prompt_embedding, persona_embedding)[0][0]
                 
-                if sim > max_similarity:
+                if sim < max_similarity:
                     max_similarity = sim
                     best_persona = (title, details)
             except Exception as e:
