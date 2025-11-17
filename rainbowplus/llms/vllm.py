@@ -1,5 +1,4 @@
 import os
-import torch  # <-- 1. Import torch
 from typing import List
 from vllm import LLM, SamplingParams
 from rainbowplus.llms.base import BaseLLM
@@ -9,29 +8,11 @@ class vLLM(BaseLLM):
     def __init__(self, model_kwargs: dict):
         self.model_kwargs = model_kwargs.copy()
         
-        # --- BẮT ĐẦU CODE SỬA ĐỔI LẦN 3 ---
+        # Xóa key 'device' không chuẩn để vLLM không báo lỗi
+        self.model_kwargs.pop("device", None) 
         
-        # 2. Lấy device_id ('0' hoặc '1')
-        device_id_str = self.model_kwargs.pop("device", "0")
-        device_id_int = int(device_id_str)
-
-        # 3. Lấy device hiện tại (để khôi phục sau)
-        original_device_id = torch.cuda.current_device()
-
-        try:
-            # 4. Ra lệnh cho PyTorch đổi GPU active
-            #    Đây là lệnh quan trọng nhất
-            torch.cuda.set_device(device_id_int)
-            
-            # 5. Khởi tạo LLM. Giờ nó sẽ dùng GPU active (GPU 1)
-            self.llm = LLM(**self.model_kwargs)
-        
-        finally:
-            # 6. Khôi phục lại device cũ để không ảnh hưởng
-            #    đến các tiến trình khác (nếu có)
-            torch.cuda.set_device(original_device_id)
-        
-        # --- KẾT THÚC CODE SỬA ĐỔI LẦN 3 ---
+        # Khởi tạo LLM bình thường
+        self.llm = LLM(**self.model_kwargs)
 
     def get_name(self):
         return self.model_kwargs["model"]
