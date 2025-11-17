@@ -711,7 +711,7 @@ if __name__ == "__main__":
     llms = initialize_language_models(config)
     
     # 5. Set the fitness function (e.g., a guard model)
-    fitness_fn = LlamaGuard(config.fitness_llm)
+    fitness_fn = LlamaGuard(config.fitness_llm.model_kwargs)
     
     # 6. Set the similarity function (e.g., BLEU score)
     similarity_fn = BleuScoreNLTK()
