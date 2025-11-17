@@ -10,54 +10,54 @@ memory:
 # Seed dataset
 sample_prompts: ./data/do-not-answer.json
 
-# Target LLM Configuration (RẤT NHỎ)
+# Target LLM Configuration
 target_llm:
   type_: vllm
   model_kwargs:
-    # Model 0.5 Tỷ tham số, rất nhỏ
-    model: Qwen/Qwen1.5-0.5B-Chat 
+    model: Qwen/Qwen1.5-1.8B-Chat
     trust_remote_code: True
     max_model_len: 2048
-    gpu_memory_utilization: 0.9
+    # Tăng lên 40% VRAM
+    gpu_memory_utilization: 0.5
     dtype: half
     swap_space: 8
-    device: "0" # <--- Chạy trên GPU 0
+    device: "0"
     enforce_eager: True
   sampling_params:
     temperature: 0.6
     top_p: 0.9
     max_tokens: 1024
 
-# Mutator LLM Configuration (NHỎ)
+# Mutator LLM Configuration
 mutator_llm: 
   type_: vllm
   model_kwargs:
-    # Model 1.1 Tỷ tham số
-    model: TinyLlama/TinyLlama-1.1B-Chat-v1.0 
+    model: Qwen/Qwen2.5-3B-Instruct
     trust_remote_code: True
+    # Tăng lên 43% VRAM
     gpu_memory_utilization: 0.9
     max_model_len: 2048
     dtype: half
     swap_space: 8
-    device: "1" # <--- Chạy trên GPU 1
+    device: "1"
     enforce_eager: True
   sampling_params:
     temperature: 0.7
     top_p: 0.9
     max_tokens: 128
 
-# Fitness LLM Configuration (RẤT NHỎ)
+# Fitness LLM Configuration
 fitness_llm: 
   type_: vllm
   model_kwargs:
-    # Model 0.5 Tỷ tham số, rất nhỏ
-    model: Qwen/Qwen1.5-0.5B-Chat 
+    model: meta-llama/Llama-Guard-3-1B
     trust_remote_code: True
-    gpu_memory_utilization: 0.9
+    # Giảm xuống 14% VRAM
+    gpu_memory_utilization: 0.4
     max_model_len: 4096
     dtype: half
     swap_space: 8
-    device: "0" # <--- Chạy trên GPU 0
+    device: "0"
     enforce_eager: True
   sampling_params:
     temperature: 0.7
