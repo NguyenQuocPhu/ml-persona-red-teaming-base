@@ -63,6 +63,7 @@ fitness_llm:
 
 sample_prompts: ./data/harmbench.json
 num_samples: 100
+n_cells: 100
 max_iters: 20
 sim_threshold: 0.6
 num_mutations: 10
