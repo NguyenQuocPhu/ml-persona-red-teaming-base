@@ -29,6 +29,7 @@ class Configuration:
     persona_type: Optional[str] = "RedTeamingExperts" 
     log_dir: str = "./logs"
     num_samples: int = 150
+    n_cells: int = 100
     max_iters: int = 1000
     sim_threshold: float = 0.6
     num_mutations: int = 5
