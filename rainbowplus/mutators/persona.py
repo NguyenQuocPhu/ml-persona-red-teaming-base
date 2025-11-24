@@ -643,6 +643,33 @@ class PersonaMutator:
         # Update embeddings cache
         self._cache_persona_embeddings()
             
+    def _repair_yaml_string(self, yaml_str: str) -> str:
+        """
+        Cố gắng sửa các lỗi format thường gặp của LLM trước khi parse.
+        """
+        # 1. Xóa markdown fence
+        text = strip_markdown_fence(yaml_str)
+        
+        lines = text.split('\n')
+        fixed_lines = []
+        for line in lines:
+            # 2. Sửa lỗi dấu hai chấm ở cuối giá trị (VD: "title: Doctor:")
+            # Regex này tìm: (Key: Value)(:) -> Xóa nhóm cuối
+            # Chỉ áp dụng nếu dòng không kết thúc bằng trích dẫn (để tránh sửa sai string)
+            if line.strip().endswith(':') and line.count(':') > 1:
+                 # Nếu dòng có format "key: value:", xóa dấu : cuối cùng
+                 line = line.rsplit(':', 1)[0]
+            
+            fixed_lines.append(line)
+        
+        text = '\n'.join(fixed_lines)
+
+        # 3. Kiểm tra ngoặc kép không đóng (Unclosed quotes) - Nguyên nhân gây lỗi "unexpected end of stream"
+        # Nếu số lượng dấu " là lẻ, thêm 1 dấu " vào cuối
+        if text.count('"') % 2 != 0:
+            text += '"'
+            
+        return text
     def _format_persona_description(self, persona_name: str, persona_details: Dict) -> str: 
         """Format a detailed description of the persona for the prompt.
         Be tolerant to missing keys from generated YAML by providing safe defaults.
@@ -834,7 +861,7 @@ class PersonaMutator:
                 #
                 new_persona_yaml = mutator_llm.generate(generation_prompt, sampling_params)
                 #
-                new_persona_yaml_clean = strip_markdown_fence(new_persona_yaml)
+                new_persona_yaml_clean = self._repair_yaml_string(new_persona_yaml)
                 #
                 new_persona_details = yaml.safe_load(new_persona_yaml_clean)
                 
