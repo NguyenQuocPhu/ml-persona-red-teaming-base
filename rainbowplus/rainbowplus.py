@@ -119,7 +119,7 @@ class GrowingArchive:
 
     def add_evaluation(self, evaluation: Dict) -> str:
         if evaluation["fitness"] < self.fitness_threshold:
-            return "rejected_fitness_low"
+            return "fitness_too_low"
 
         b_vector = evaluation["behavior"].reshape(1, -1)
         active_centroids = self.centroids[:self.n_centroids]
@@ -240,6 +240,7 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
     all_scores = Archive("all_scores")
     all_similarities = Archive("all_similarities")
     rejection_reasons = Archive("rejection_reasons")
+    all_queris = Archive("all_queries")
     
     # --- 2. Initialize Lineage Archives (Archive Objects) ---
     all_prompt_ids = Archive("all_prompt_ids")
@@ -276,7 +277,7 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
             "seed_id": pid,
             "prompt_id": pid
         })
-
+            
     # --- MAIN LOOP ---
     for i in range(args.max_iters):
         logger.info(f"#####ITERATION: {i}")
@@ -342,8 +343,8 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
         persona_yaml_string = yaml.dump(details_to_dump, default_flow_style=False, indent=4, sort_keys=False)
 
         prompt_ = MUTATOR_PROMPT.format(
-            risk=descriptor["Risk Category"], # Adjust based on your config keys
-            style=descriptor["Attack Style"],
+            risk=descriptor["Category"], # Adjust based on your config keys
+            style=descriptor["Style"],
             persona_yaml_details=persona_yaml_string,
             prompt=prompt
         )
@@ -352,7 +353,7 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
             [prompt_] * args.num_mutations, config.mutator_llm.sampling_params
         )
         original_mutated_prompts = mutated_prompts.copy()
-
+        
         # --- Step 3: Filtering & Evaluation ---
         # Filter by similarity
         mutated_prompts = [
@@ -386,8 +387,6 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
                 status = "accepted"
                 if sim > args.sim_threshold:
                     status = "similarity_too_high"
-                elif fit < args.fitness_threshold:
-                    status = "fitness_too_low"
                 
                 if status == "accepted":
                     eval_item = {
@@ -396,6 +395,7 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
                         "descriptor": selected_persona,
                         "fitness": fit,
                         "behavior": behavior,
+                        "iter": i,
                         # Lineage info
                         "prompt_id": new_pid,
                         "parent_id": current_parent_id,
@@ -423,6 +423,7 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
             update_archive(all_scores, log_key_tuple, fitness_scores)
             update_archive(all_similarities, log_key_tuple, sim_scores)
             update_archive(rejection_reasons, log_key_tuple, batch_reasons)
+            #update_archive(all_iters, log_key_tuple, [i] * len(mutated_prompts)
             
             # Update Lineage Archives (Pipeline of IDs)
             update_archive(all_prompt_ids, log_key_tuple, batch_prompt_ids)
@@ -442,20 +443,23 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
                 )
                 
                 # Save Comprehensive Log (All History + Lineage + GA State)
-                save_ga_comprehensive_log(
-                    log_dir, GA,
-                    all_prompts, all_responses, all_scores, all_similarities, rejection_reasons,
-                    timestamp, iteration=i,
-                    all_prompt_ids=all_prompt_ids,
-                    all_parent_ids=all_parent_ids,
-                    all_seed_ids=all_seed_ids,
-                    max_iters=args.max_iters
-                )
+                
+                
+                
 
     # Final Save
     final_ts = time.strftime(r"%Y%m%d-%H%M%S")
     save_ga_iteration_log(log_dir, GA, final_ts, iteration=-1, max_iters=args.max_iters)
     
+    save_ga_comprehensive_log(
+        log_dir, GA,
+        all_prompts, all_responses, all_scores, all_similarities, rejection_reasons,
+        final_ts, iteration=-1,
+        all_prompt_ids=all_prompt_ids,
+        all_parent_ids=all_parent_ids,
+        all_seed_ids=all_seed_ids,
+        max_iters=args.max_iters
+    )
     return adv_prompts, responses, scores # Return legacy archives to keep interface consistent if needed
 
 if __name__ == "__main__":
