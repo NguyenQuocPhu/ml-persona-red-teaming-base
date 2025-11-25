@@ -27,7 +27,11 @@ class GeminiLLM(BaseLLM):
             HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
             HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
         }
-
+        
+    def get_name(self) -> str:
+        """Returns the name of the model."""
+        return self.model_name
+    
     def generate(self, prompt: str, sampling_params: Dict[str, Any] = None) -> str:
         # Merge params mặc định và params truyền vào
         params = self.config.get("sampling_params", {}).copy()
