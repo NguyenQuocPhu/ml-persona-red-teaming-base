@@ -14,7 +14,7 @@ target_llm:
     trust_remote_code: True
     max_model_len: 2048
     # Tăng lên 40% VRAM
-    gpu_memory_utilization: 0.4
+    gpu_memory_utilization: 0.9
     dtype: half
     swap_space: 8
     device: "0"
@@ -26,21 +26,14 @@ target_llm:
 
 # Mutator LLM Configuration
 mutator_llm: 
-  type_: vllm
+  type_: gemini  # Phải khớp với tên bạn đặt trong Switcher
+  api_key: "YOUR_GEMINI_API_KEY_HERE" # Hoặc tốt hơn là để trong biến môi trường
   model_kwargs:
-    model: Qwen/Qwen2.5-3B-Instruct
-    trust_remote_code: True
-    # Tăng lên 43% VRAM
-    gpu_memory_utilization: 0.9
-    max_model_len: 2048
-    dtype: half
-    swap_space: 8
-    device: "1"
-    enforce_eager: True
+    model: gemini-1.5-flash # Flash nhanh và rẻ, Pro thông minh hơn
   sampling_params:
-    temperature: 0.9
-    top_p: 0.9
-    max_tokens: 512
+    temperature: 1.0 # Red Teaming cần sáng tạo cao
+    top_p: 0.95
+    max_tokens: 1024
 
 # Fitness LLM Configuration
 fitness_llm: 
@@ -49,11 +42,11 @@ fitness_llm:
     model: meta-llama/Llama-Guard-3-1B
     trust_remote_code: True
     # Giảm xuống 14% VRAM
-    gpu_memory_utilization: 0.3
+    gpu_memory_utilization: 0.9
     max_model_len: 4096
     dtype: half
     swap_space: 8
-    device: "0"
+    device: "1"
     enforce_eager: True
   sampling_params:
     temperature: 0.7
