@@ -17,7 +17,7 @@ from typing import Dict
 from copy import deepcopy
 
 # --- Imports ---
-from rainbowplus.scores import BleuScoreNLTK, OpenAIGuard
+from rainbowplus.scores import BleuScoreNLTK, OpenAIGuard, LlamaGuard
 from rainbowplus.utils import (
     load_txt,
     load_json,
@@ -277,7 +277,7 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
             "seed_id": pid,
             "prompt_id": pid
         })
-            
+
     # --- MAIN LOOP ---
     for i in range(args.max_iters):
         logger.info(f"#####ITERATION: {i}")
@@ -470,7 +470,7 @@ if __name__ == "__main__":
         config.sample_prompts = merged_args.dataset
 
     llms = initialize_language_models(config)
-    fitness_fn = OpenAIGuard(config.fitness_llm)
+    fitness_fn = LlamaGuard(config.fitness_llm.model_kwargs)
     similarity_fn = BleuScoreNLTK()
 
     print(config)
