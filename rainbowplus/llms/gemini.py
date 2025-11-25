@@ -8,7 +8,8 @@ from rainbowplus.llms.base import BaseLLM  # Giả sử bạn có BaseLLM ở đ
 
 class GeminiLLM(BaseLLM):
     def __init__(self, config: Dict[str, Any]):
-        super().__init__(config)
+        super().__init__() 
+        self.config = config
         # Lấy API Key từ config hoặc biến môi trường
         api_key = config.get("api_key") 
         if not api_key:
