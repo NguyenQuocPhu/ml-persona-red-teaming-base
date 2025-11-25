@@ -1,4 +1,7 @@
-# rainbowplus/llms/gemini.py
+#
+# For licensing see accompanying LICENSE file.
+# Copyright (C) 2025 Apple Inc. All Rights Reserved.
+#
 
 import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
@@ -7,24 +10,26 @@ from typing import List, Dict, Any
 from rainbowplus.llms.base import BaseLLM 
 
 class GeminiLLM(BaseLLM):
-    def __init__(self, config: Dict[str, Any]):
-        # --- FIX START ---
-        # Do not pass config to super() if BaseLLM doesn't handle it
+    def __init__(self, config: Any):
+        # config là đối tượng LLMConfig (dataclass)
         super().__init__() 
-        self.config = config 
-        # --- FIX END ---
+        self.config = config
         
-        api_key = config.get("api_key") 
+        # --- SỬA LỖI: Truy cập attribute trực tiếp ---
+        # Vì LLMConfig là dataclass, ta dùng dấu chấm (.)
+        api_key = config.api_key 
+        
         if not api_key:
-            raise ValueError("Gemini API Key is missing in config")
+            raise ValueError("Gemini API Key is missing in config. Please add 'api_key' to your YAML config.")
         
         genai.configure(api_key=api_key)
         
-        # Get model name from config
-        self.model_name = config["model_kwargs"].get("model", "gemini-1.5-flash")
+        # config.model_kwargs là Dictionary, nên dùng .get() ở đây là ĐÚNG
+        self.model_name = config.model_kwargs.get("model", "gemini-1.5-flash")
+        
         self.model = genai.GenerativeModel(self.model_name)
         
-        # Disable Safety Filters for Red Teaming
+        # Tắt bộ lọc an toàn cho Red Teaming
         self.safety_settings = {
             HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
             HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
@@ -36,15 +41,17 @@ class GeminiLLM(BaseLLM):
         return self.model_name
 
     def generate(self, prompt: str, sampling_params: Dict[str, Any] = None) -> str:
-        # ... (rest of the code remains the same)
-        params = self.config.get("sampling_params", {}).copy()
+        # config.sampling_params là Dictionary, dùng .get() OK
+        # Sử dụng params mặc định từ config nếu không có params mới truyền vào
+        default_params = self.config.sampling_params.copy() if self.config.sampling_params else {}
+        
         if sampling_params:
-            params.update(sampling_params)
+            default_params.update(sampling_params)
             
         generation_config = genai.GenerationConfig(
-            temperature=params.get("temperature", 0.9),
-            top_p=params.get("top_p", 0.9),
-            max_output_tokens=params.get("max_tokens", 512)
+            temperature=default_params.get("temperature", 0.9),
+            top_p=default_params.get("top_p", 0.9),
+            max_output_tokens=default_params.get("max_tokens", 512)
         )
 
         try:
@@ -53,15 +60,19 @@ class GeminiLLM(BaseLLM):
                 generation_config=generation_config,
                 safety_settings=self.safety_settings
             )
-            return response.text if response.text else ""
+            # Kiểm tra response hợp lệ
+            if response.text:
+                return response.text
+            return ""
         except Exception as e:
-            print(f"Gemini API Error: {e}")
+            # In lỗi để debug nhưng không làm crash luồng chạy
+            print(f"Gemini API Warning: {e}")
             return ""
 
     def batch_generate(self, prompts: List[str], sampling_params: Dict[str, Any] = None) -> List[str]:
-        # ... (rest of the code remains the same)
         results = []
         for prompt in prompts:
             results.append(self.generate(prompt, sampling_params))
-            time.sleep(0.5) 
+            # Nghỉ nhẹ để tránh rate limit của Google (15 request/phút với gói free)
+            time.sleep(2.0) 
         return results
