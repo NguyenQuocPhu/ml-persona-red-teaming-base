@@ -27,7 +27,7 @@ target_llm:
 # Mutator LLM Configuration
 mutator_llm: 
   type_: gemini  # Phải khớp với tên bạn đặt trong Switcher
-  api_key: "YOUR_GEMINI_API_KEY_HERE" # Hoặc tốt hơn là để trong biến môi trường
+  api_key: "AIzaSyBcO7XwIQCBCMB0q4U2vehJUnjD2reFt0M" # Hoặc tốt hơn là để trong biến môi trường
   model_kwargs:
     model: gemini-1.5-flash # Flash nhanh và rẻ, Pro thông minh hơn
   sampling_params:
