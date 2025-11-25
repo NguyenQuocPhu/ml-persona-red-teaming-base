@@ -385,6 +385,79 @@ def calculate_self_bleu(log_data, n=4):
         scores.append(score)
     return float(np.mean(scores)) if scores else 0.0
 
+def calculate_lexical_ga_diversity(log_data):
+    # Gather all mutated prompts
+    ga_state = log_data.get('ga_state', {})
+    elites = ga_state.get('elites', {})
+    flat_prompts = [
+        elite_data.get('prompt')
+        for elite_data in elites.values()
+        if elite_data.get('prompt') is not None
+    ]
+    total = len(flat_prompts)
+    unique = len(set(flat_prompts))
+    diversity_score = unique / total if total > 0 else 0
+    return {
+        'total_prompts': total,
+        'unique_prompts': unique,
+        'diversity_score': diversity_score
+    }
+
+
+def calculate_embedding_ga_diversity(log_data):
+    """Calculate embedding-based diversity from all prompts."""
+    ga_state = log_data.get('ga_state', {})
+    elites = ga_state.get('elites', {})
+    flat_prompts = [
+        elite_data.get('prompt')
+        for elite_data in elites.values()
+        if elite_data.get('prompt') is not None
+    ]
+    
+    if len(flat_prompts) < 2:
+        return 0.0
+    
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+    embeddings = model.encode(flat_prompts, show_progress_bar=False)
+    
+    # Compute pairwise cosine distances
+    dists = cosine_distances(embeddings)
+    
+    # Only take upper triangle, excluding diagonal
+    n = len(flat_prompts)
+    triu_indices = np.triu_indices(n, k=1)
+    avg_dist = dists[triu_indices].mean() if len(triu_indices[0]) > 0 else 0.0
+    
+    return float(avg_dist)
+
+
+def calculate_self_ga_bleu(log_data, n=4):
+    """
+    Calculate Self-BLEU for the set of prompts.
+    Lower is more diverse.
+    """
+    ga_state = log_data.get('ga_state', {})
+    elites = ga_state.get('elites', {})
+    flat_prompts = [
+        elite_data.get('prompt')
+        for elite_data in elites.values()
+        if elite_data.get('prompt') is not None
+    ]
+    if len(flat_prompts) < 2:
+        return 0.0
+
+    # Tokenize prompts
+    tokenized_prompts = [p.split() for p in flat_prompts]
+    smoother = SmoothingFunction().method1
+    scores = []
+    for i, candidate in enumerate(tokenized_prompts):
+        references = tokenized_prompts[:i] + tokenized_prompts[i+1:]
+        if not references:
+            continue
+        score = sentence_bleu(references, candidate, weights=tuple([1/n]*n), smoothing_function=smoother)
+        scores.append(score)
+    return float(np.mean(scores)) if scores else 0.0
+
 
 def calculate_comprehensive_metrics(log_data, num_iterations=None, regular_log_path=None):
     """
@@ -454,7 +527,7 @@ def calculate_comprehensive_metrics(log_data, num_iterations=None, regular_log_p
     scored_prompts = list(zip(flat_prompts, flat_scores))
     scored_prompts.sort(key=lambda x: x[1], reverse=True)
     top_k_prompts = scored_prompts[:k]
-    
+
     return {
         'filter_pass_rate': filter_pass_rate,
         'ASR': ASR,
@@ -609,6 +682,10 @@ def main():
     embedding_diversity = calculate_embedding_diversity(log_data)
     self_bleu = calculate_self_bleu(log_data)
     
+    lexical_ga_diversity = calculate_lexical_ga_diversity(log_data)
+    embedding_ga_diversity = calculate_embedding_ga_diversity(log_data)
+    self_bleu_ga = calculate_self_ga_bleu(log_data)
+    
     print("\nDIVERSITY SCORES:")
     print(f"  Lexical diversity:")
     print(f"    Unique prompts: {lexical_diversity['unique_prompts']}")
@@ -616,6 +693,14 @@ def main():
     print(f"    Diversity score (unique/total): {lexical_diversity['diversity_score']:.3f}")
     print(f"  Embedding diversity (avg pairwise cosine distance): {embedding_diversity:.4f}")
     print(f"  Self-BLEU (lower is more diverse): {self_bleu:.4f}")
+
+    print("\nGA DIVERSITY SCORES:")
+    print(f"  Lexical diversity:")
+    print(f"    Unique prompts: {lexical_ga_diversity['unique_prompts']}")
+    print(f"    Total prompts: {lexical_ga_diversity['total_prompts']}")
+    print(f"    Diversity score (unique/total): {lexical_ga_diversity['diversity_score']:.3f}")
+    print(f"  Embedding diversity (avg pairwise cosine distance): {embedding_ga_diversity:.4f}")
+    print(f"  Self-BLEU (lower is more diverse): {self_bleu_ga:.4f}")
 
     # Comprehensive metrics using automatically extracted parameters
     metrics = calculate_comprehensive_metrics(log_data, max_iterations, regular_log)
