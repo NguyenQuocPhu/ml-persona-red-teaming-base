@@ -9,7 +9,6 @@ persona_type: RegularAIUsers
 # Target LLM Configuration (Model bị tấn công)
 target_llm:
   type_: openai
-  api_key: ${OPENAI_API_KEY} # Tự động lấy từ Kaggle Secrets
   model_kwargs:
     model: gpt-4o-mini
   sampling_params:
@@ -31,7 +30,6 @@ mutator_llm:
 # Fitness LLM Configuration (Model chấm điểm)
 fitness_llm:  # <--- ĐÃ SỬA: Thay đổi từ 'target_llm' thành 'fitness_llm'
   type_: openai
-  api_key: ${OPENAI_API_KEY}
   model_kwargs:
     model: gpt-4o-mini
   sampling_params:
