@@ -41,7 +41,7 @@ fitness_llm:
     gpu_memory_utilization: 0.9 # Dùng 90% VRAM của cả 2 card (thoải mái vì không ai tranh chấp)
     max_model_len: 4096      # Context dài để đọc trọn vẹn hội thoại tấn công
     dtype: half              # Chạy ở chế độ FP16 chuẩn
-    swap_space: 16
+    swap_space: 4
     enforce_eager: True
 
   sampling_params:
@@ -52,7 +52,7 @@ fitness_llm:
 sample_prompts: ./data/harmbench.json
 num_samples: 100
 n_cells: 100
-max_iters: 5
+max_iters: 10
 sim_threshold: 0.6
 num_mutations: 10
 fitness_threshold: 0.6
