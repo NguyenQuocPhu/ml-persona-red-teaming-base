@@ -470,7 +470,7 @@ if __name__ == "__main__":
         config.sample_prompts = merged_args.dataset
 
     llms = initialize_language_models(config)
-    fitness_fn = LlamaGuard(config.fitness_llm.model_kwargs)
+    fitness_fn = OpenAIGuard(config.fitness_llm.model_kwargs)
     similarity_fn = BleuScoreNLTK()
 
     print(config)
