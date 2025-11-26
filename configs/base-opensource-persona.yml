@@ -36,7 +36,6 @@ fitness_llm:
     
     # --- CẤU HÌNH QUAN TRỌNG ĐỂ DÙNG 2 GPU ---
     tensor_parallel_size: 2  # Chia model ra 2 GPU chạy song song
-    device: 'auto'           # Tự động nhận diện cả 2 card
     # -----------------------------------------
     
     gpu_memory_utilization: 0.9 # Dùng 90% VRAM của cả 2 card (thoải mái vì không ai tranh chấp)
