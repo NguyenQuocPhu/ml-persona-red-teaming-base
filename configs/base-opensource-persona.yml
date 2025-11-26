@@ -8,21 +8,14 @@ persona_type: RegularAIUsers
 
 # Target LLM Configuration
 target_llm:
-  type_: vllm
+  type_: openai
+  api_key: ${OPENAI_API_KEY}
   model_kwargs:
-    model: Qwen/Qwen1.5-1.8B-Chat
-    trust_remote_code: True
-    max_model_len: 2048
-    # Tăng lên 40% VRAM
-    gpu_memory_utilization: 0.9
-    dtype: half
-    swap_space: 8
-    device: "0"
-    enforce_eager: True
+    model: gpt-4o-mini
   sampling_params:
-    temperature: 0.6
+    temperature: 0.7
     top_p: 0.9
-    max_tokens: 1024
+    max_tokens: 512
 
 # Mutator LLM Configuration
 mutator_llm: 
@@ -36,23 +29,15 @@ mutator_llm:
     max_tokens: 1024
 
 # Fitness LLM Configuration
-fitness_llm: 
-  type_: vllm
+target_llm:
+  type_: openai
+  api_key: ${OPENAI_API_KEY}
   model_kwargs:
-    model: meta-llama/Llama-Guard-3-1B
-    trust_remote_code: True
-    # Giảm xuống 14% VRAM
-    gpu_memory_utilization: 0.9
-    max_model_len: 4096
-    dtype: half
-    swap_space: 8
-    device: "1"
-    enforce_eager: True
+    model: gpt-4o-mini
   sampling_params:
     temperature: 0.7
     top_p: 0.9
-    max_tokens: 16
-    logprobs: 1
+    max_tokens: 512
 
 sample_prompts: ./data/harmbench.json
 num_samples: 100

@@ -10,7 +10,6 @@ from pydantic import BaseModel
 import time
 import httpx
 import openai
-
 from typing import List
 
 
