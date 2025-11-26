@@ -6,10 +6,10 @@ mutation_strategy: combined-fit
 persona_config: configs/personas/users.yml
 persona_type: RegularAIUsers
 
-# Target LLM Configuration
+# Target LLM Configuration (Model bị tấn công)
 target_llm:
   type_: openai
-  api_key: ${OPENAI_API_KEY}
+  api_key: ${OPENAI_API_KEY} # Tự động lấy từ Kaggle Secrets
   model_kwargs:
     model: gpt-4o-mini
   sampling_params:
@@ -17,19 +17,20 @@ target_llm:
     top_p: 0.9
     max_tokens: 512
 
-# Mutator LLM Configuration
+# Mutator LLM Configuration (Model tấn công/biến đổi)
 mutator_llm: 
-  type_: gemini  # Phải khớp với tên bạn đặt trong Switcher
-  api_key: "AIzaSyBcO7XwIQCBCMB0q4U2vehJUnjD2reFt0M" # Hoặc tốt hơn là để trong biến môi trường
+  type_: gemini
+  # LƯU Ý: Tốt nhất nên dùng ${GEMINI_API_KEY} thay vì paste cứng key ở đây để tránh lỗi GitHub
+  api_key: "AIzaSyBcO7XwIQCBCMB0q4U2vehJUnjD2reFt0M" 
   model_kwargs:
-    model: gemini-1.5-flash # Flash nhanh và rẻ, Pro thông minh hơn
+    model: gemini-1.5-flash
   sampling_params:
-    temperature: 1.0 # Red Teaming cần sáng tạo cao
+    temperature: 1.0
     top_p: 0.95
     max_tokens: 1024
 
-# Fitness LLM Configuration
-target_llm:
+# Fitness LLM Configuration (Model chấm điểm)
+fitness_llm:  # <--- ĐÃ SỬA: Thay đổi từ 'target_llm' thành 'fitness_llm'
   type_: openai
   api_key: ${OPENAI_API_KEY}
   model_kwargs:
