@@ -8,7 +8,7 @@ from google.generativeai.types import HarmCategory, HarmBlockThreshold
 import time
 from typing import List, Dict, Any
 from rainbowplus.llms.base import BaseLLM 
-
+from kaggle_secrets import UserSecretsClient
 class GeminiLLM(BaseLLM):
     def __init__(self, config: Any):
         # config là đối tượng LLMConfig (dataclass)
@@ -17,7 +17,8 @@ class GeminiLLM(BaseLLM):
         
         # --- SỬA LỖI: Truy cập attribute trực tiếp ---
         # Vì LLMConfig là dataclass, ta dùng dấu chấm (.)
-        api_key = config.api_key 
+        user_secrets = UserSecretsClient()
+        api_key = user_secrets.get_secret("GEMINI_API_KEY")
         
         if not api_key:
             raise ValueError("Gemini API Key is missing in config. Please add 'api_key' to your YAML config.")
