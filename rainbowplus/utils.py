@@ -382,7 +382,49 @@ def save_comprehensive_log(
 
     logger.info(f"Comprehensive log saved to {log_path}")
 
+def _format_example(entry: Dict[str, Any]) -> str:
+    """
+    Chuyển đổi entry thành chuỗi YAML.
+    
+    Thứ tự hiển thị:
+    1. PROMPT (Đứng đầu)
+    2. TITLE
+    3. DETAILS (Các thông tin còn lại của Persona)
+    """
+    # 1. Unpack dữ liệu
+    persona_tuple = entry.get('persona')
+    prompt_text = entry.get('prompt', '').strip()
+    
 
+    title, details = persona_tuple
+    
+    # 2. Tạo Dict mới (Ordered)
+    ordered_data = {}
+
+    # --- THAY ĐỔI Ở ĐÂY: Đưa Prompt vào ĐẦU TIÊN ---
+    if prompt_text:
+        ordered_data['generated_attack_prompt'] = prompt_text
+    
+    # Tiếp theo là Title
+    ordered_data['title'] = title
+    
+    # Cuối cùng là các chi tiết Persona
+    for key, value in details.items():
+        ordered_data[key] = value
+
+    # 3. Dump sang YAML string
+    try:
+        yaml_str = yaml.dump(
+            ordered_data,
+            allow_unicode=True,
+            default_flow_style=False,
+            sort_keys=False,          # Giữ nguyên thứ tự: Prompt -> Title -> Details
+            width=float("inf")
+        )
+        return yaml_str.strip()
+    except Exception as e:
+        return f"Error formatting persona: {e}"
+    
 def initialize_language_models(config: ConfigurationLoader):
     """
     Initialize language models from configuration.

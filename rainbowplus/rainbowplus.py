@@ -24,13 +24,14 @@ from rainbowplus.utils import (
     initialize_language_models,
     save_ga_iteration_log,      # New logging function
     save_ga_comprehensive_log,  # New logging function
+    _format_example,
 )
 from rainbowplus.archive import Archive
 from rainbowplus.configs import ConfigurationLoader
 from rainbowplus.prompts import MUTATOR_PROMPT, TARGET_PROMPT
 from rainbowplus.configs.base import LLMConfig
 from rainbowplus.mutators.persona import PersonaMutator
-
+from rainbowplus.attack_memory import AttackMemory
 # Set fixed random seed
 RANDOM_SEED = 15
 random.seed(RANDOM_SEED)
@@ -160,7 +161,7 @@ class GrowingArchive:
             self._set_new_elite(cell_id, evaluation, is_backup=False)
             return "replaced_fitness"
             
-        return "rejected_not_elite"
+        return "rejected"
 
     def sample_parent(self):
         if not self.elites:
@@ -181,9 +182,13 @@ def parse_arguments():
     parser.add_argument("--config_file", type=str, default="./configs/base.yml", help="Path to configuration file")
     parser.add_argument("--log_dir", type=str, help="Directory for storing logs")
     parser.add_argument("--log_interval", type=int, help="Number of iterations between log saves")
+    parser.add_argument("--seed_memory", type = str, help = "Path of seed prompts for memory")
     parser.add_argument("--dataset", type=str, help="Dataset name")
     parser.add_argument("--target_llm", type=str, help="Path to repository of target LLM")
     parser.add_argument("--shuffle", action="store_true", help="Shuffle seed prompts")
+    parser.add_argument("--threshold_bot_memory", type = float, default = 0.4, help = "Maximize fitness score to add prompt to memory")
+    parser.add_argument("--threshold_top_memory", type = float, default = 0.6, help = "Minimize fitness score to add prompt to memory")
+    parser.add_argument("--number_example_prompts", type = int, help = "Number of example prompts in few-shot")
     return parser.parse_args()
 
 def merge_config_with_args(config, args):
@@ -197,6 +202,10 @@ def merge_config_with_args(config, args):
     merged_args.log_dir = config.log_dir
     merged_args.log_interval = config.log_interval
     merged_args.shuffle = config.shuffle
+    merged_args.threshold_bot_memory = config.threshold_bot_memory
+    merged_args.threshold_top_memory = config.threshold_top_memory
+    merged_args.seed_memory = config.seed_memory or "configs/seed_memory.yml"
+    merged_args.number_example_prompts = config.number_example_prompts
     merged_args.dataset = config.sample_prompts or "./data/do-not-answer.json"
     merged_args.config_file = args.config_file
     
@@ -209,6 +218,10 @@ def merge_config_with_args(config, args):
     if args.log_dir is not None: merged_args.log_dir = args.log_dir
     if args.log_interval is not None: merged_args.log_interval = args.log_interval
     if args.shuffle is not None: merged_args.shuffle = args.shuffle
+    if args.threshold_bot_memory is not None: merged_args.threshold_bot_memory = args.threshold_bot_memory
+    if args.threshold_top_memory is not None: merged_args.threshold_top_memory = args.threshold_top_memory
+    if args.seed_memory is not None: merged_args.seed_memory = args.seed_memory
+    if args.number_example_prompts is not None: merged_args.number_example_prompts = args.number_example_prompts
     if args.dataset is not None: merged_args.dataset = args.dataset
     return merged_args
 
@@ -250,7 +263,7 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
     # --- 3. Initialize Growing Archive ---
     behavior_dim = 384 # Matching all-MiniLM-L6-v2 dimensions
     GA = GrowingArchive(args.n_cells, behavior_dim, args.fitness_threshold)
-    
+    AttackMemory = AttackMemory(args.threshold_bot_memory, args.threshold_top_memory)
     # --- 4. Initialize Persona Mutator ---
     persona_mutator = None
     simple_persona_mode = getattr(config, 'simple_persona_mode', False) or getattr(config, 'simple_mode', False) or config.__dict__.get('simple_persona_mode', False)
@@ -268,6 +281,13 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
         log_dir = Path(config.log_dir) / config.target_llm.model_kwargs["model"] / dataset_name
     log_dir.mkdir(parents=True, exist_ok=True)
 
+    try:
+        with open(args.seed_memory, 'r', encoding='utf-8') as f:
+            seed_prompts_memory = yaml.safe_load(f) # List[Dict]
+    except Exception as e:
+        print(f"Error loading YAML: {e}")
+        return []
+    
     # --- 5. Seed Metadata Initialization ---
     seed_metadata = []
     for idx, prompt in enumerate(seed_prompts):
@@ -277,7 +297,7 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
             "seed_id": pid,
             "prompt_id": pid
         })
-
+    AttackMemory.add_list(seed_prompts_memory)
     # --- MAIN LOOP ---
     for i in range(args.max_iters):
         logger.info(f"#####ITERATION: {i}")
@@ -318,12 +338,12 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
         # --- Step 2: Descriptor & Mutation ---
         descriptor = {}
         selected_persona = None
-        number_of_persona = 5
+        number_of_persona = 1
         
         # Sample descriptors
         for key, values in descriptors.items():
             if key == "Persona":
-                persona_name, persona_details = persona_mutator._generate_contextual_persona(
+                persona_name, persona_details = persona_mutator._generate_persona(
                     prompt, 
                     current_descriptor,
                     llms[config.mutator_llm.model_kwargs["model"]], 
@@ -342,7 +362,12 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
         details_to_dump = {'title': persona_name, **persona_details}
         persona_yaml_string = yaml.dump(details_to_dump, default_flow_style=False, indent=4, sort_keys=False)
 
+        sample_top_prompts = AttackMemory.get_prompts_top(args.number_example_prompts)
+        sample_bot_prompts = AttackMemory.get_prompts_bot(args.number_example_prompts)
+
         prompt_ = MUTATOR_PROMPT.format(
+            failed_examples_text=_format_example(sample_bot_prompts),
+            successful_examples_text=_format_example(sample_top_prompts),
             risk=descriptor["Category"], # Adjust based on your config keys
             style=descriptor["Style"],
             persona_yaml_details=persona_yaml_string,
@@ -378,7 +403,7 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
             batch_reasons = []
             
             # NOTE: We use log_key based on descriptors for archiving, not for GA logic
-            log_key_tuple = (descriptor.get("Risk Category"), descriptor.get("Attack Style"), persona_name)
+            log_key_tuple = (descriptor.get("Category"), descriptor.get("Style"), persona_name)
 
             for idx, (m_prompt, response, fit, sim, behavior) in enumerate(zip(mutated_prompts, candidates, fitness_scores, sim_scores, all_behaviors)):
                 new_pid = str(uuid.uuid4())
@@ -404,7 +429,12 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
                     
                     # Update GA
                     ga_result = GA.add_evaluation(eval_item)
-                    
+                    candidate_memory = {
+                        "prompt": m_prompt,
+                        "score": fit,
+                        "persoa": selected_persona
+                    }
+                    AttackMemory.add(candidate_memory)
                     if "rejected" in ga_result:
                         status = ga_result
                     else:

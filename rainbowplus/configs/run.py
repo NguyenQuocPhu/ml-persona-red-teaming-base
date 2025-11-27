@@ -22,6 +22,7 @@ class Configuration:
     fitness_llm: LLMConfig
     archive: Dict[str, Any] = field(default_factory=dict)
     sample_prompts: str = ""
+    seed_memory: str = ""
     mutator_llm: Optional[LLMConfig] = None
     mutation_strategy: Optional[str] = None
     persona_config: Optional[str] = None
@@ -36,6 +37,9 @@ class Configuration:
     fitness_threshold: float = 0.5
     log_interval: int = 50
     shuffle: bool = True
+    threshold_bot: float = 0.4
+    threshold_top: float = 0.6
+    number_example_prompts: int = 2
 
     def __post_init__(self):
         self.mutator_llm = self.mutator_llm or self.target_llm
