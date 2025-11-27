@@ -9,7 +9,7 @@ import logging
 import sys
 import os
 
-from typing import TypeVar, List
+from typing import TypeVar, List, Dict, Any
 from datasets import load_dataset
 from rainbowplus.switcher import LLMSwitcher
 from rainbowplus.configs import ConfigurationLoader
