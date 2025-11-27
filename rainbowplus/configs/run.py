@@ -37,8 +37,8 @@ class Configuration:
     fitness_threshold: float = 0.5
     log_interval: int = 50
     shuffle: bool = True
-    threshold_bot: float = 0.4
-    threshold_top: float = 0.6
+    threshold_bot_memory: float = 0.4
+    threshold_top_memory: float = 0.6
     number_example_prompts: int = 2
 
     def __post_init__(self):
