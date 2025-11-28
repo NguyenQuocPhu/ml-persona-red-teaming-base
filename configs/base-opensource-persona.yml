@@ -28,27 +28,20 @@ mutator_llm:
     max_tokens: 1024
 
 # Cấu hình Fitness "Khủng Long" chạy trên 2 GPU T4
-fitness_llm:
+fitness_llm: 
   type_: vllm
+
   model_kwargs:
-    model: meta-llama/Llama-Guard-3-8B # Bản 8B mạnh mẽ hơn bản 1B nhiều
+    model: meta-llama/Llama-Guard-3-1B
     trust_remote_code: True
-    
-    # --- CẤU HÌNH QUAN TRỌNG ĐỂ DÙNG 2 GPU ---
-    #tensor_parallel_size: 1  # Chia model ra 2 GPU chạy song song
-    # -----------------------------------------
-    
-    gpu_memory_utilization: 0.9 # Dùng 90% VRAM của cả 2 card (thoải mái vì không ai tranh chấp)
-    max_model_len: 4096      # Context dài để đọc trọn vẹn hội thoại tấn công
-    dtype: half              # Chạy ở chế độ FP16 chuẩn
-    swap_space: 4
-    enforce_eager: True
-    disable_custom_all_reduce: True # In kaggle 
+    gpu_memory_utilization: 0.3
+    max_model_len: 4096
 
   sampling_params:
-    temperature: 0.0         # Fitness cần ổn định, không sáng tạo
-    max_tokens: 16           # Chỉ cần output "safe" hoặc "unsafe"
-    logprobs: 1              # Để lấy điểm số tự tin (confidence score)
+    temperature: 0.7
+    top_p: 0.9
+    max_tokens: 16
+    logprobs: 1         # Để lấy điểm số tự tin (confidence score)
 
 sample_prompts: ./data/harmbench.json
 seed_memory: configs/seed_memory.yml
