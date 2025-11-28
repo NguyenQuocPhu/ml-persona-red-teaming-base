@@ -35,7 +35,7 @@ fitness_llm:
     trust_remote_code: True
     
     # --- CẤU HÌNH QUAN TRỌNG ĐỂ DÙNG 2 GPU ---
-    tensor_parallel_size: 1  # Chia model ra 2 GPU chạy song song
+    #tensor_parallel_size: 1  # Chia model ra 2 GPU chạy song song
     # -----------------------------------------
     
     gpu_memory_utilization: 0.9 # Dùng 90% VRAM của cả 2 card (thoải mái vì không ai tranh chấp)
