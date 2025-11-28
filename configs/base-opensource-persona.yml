@@ -43,6 +43,7 @@ fitness_llm:
     dtype: half              # Chạy ở chế độ FP16 chuẩn
     swap_space: 4
     enforce_eager: True
+    disable_custom_all_reduce: True # In kaggle 
 
   sampling_params:
     temperature: 0.0         # Fitness cần ổn định, không sáng tạo
