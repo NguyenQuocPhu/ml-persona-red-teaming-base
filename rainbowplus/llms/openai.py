@@ -11,14 +11,14 @@ import time
 import httpx
 import openai
 from typing import List
-from kaggle_secrets import UserSecretsClient
+
 
 class LLMviaOpenAI(BaseLLM):
     def __init__(self, config):
         user_secrets = UserSecretsClient()
         self.config = config
         self.model_kwargs = config.model_kwargs
-        self.client = OpenAI(api_key=user_secrets.get_secret("OPENAI_API_KEY"), base_url=config.base_url)
+        #self.client = OpenAI(api_key=user_secrets.get_secret("OPENAI_API_KEY"), base_url=config.base_url)
 
     def get_name(self):
         return self.model_kwargs["model"]
