@@ -263,7 +263,7 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
     # --- 3. Initialize Growing Archive ---
     behavior_dim = 384 # Matching all-MiniLM-L6-v2 dimensions
     GA = GrowingArchive(args.n_cells, behavior_dim, args.fitness_threshold)
-    AttackMemory = AttackMemory(args.threshold_bot_memory, args.threshold_top_memory)
+    attack_memory = AttackMemory(args.threshold_bot_memory, args.threshold_top_memory)
     # --- 4. Initialize Persona Mutator ---
     persona_mutator = None
     simple_persona_mode = getattr(config, 'simple_persona_mode', False) or getattr(config, 'simple_mode', False) or config.__dict__.get('simple_persona_mode', False)
@@ -297,7 +297,7 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
             "seed_id": pid,
             "prompt_id": pid
         })
-    AttackMemory.add_list(seed_prompts_memory)
+    attack_memory.add_list(seed_prompts_memory)
     # --- MAIN LOOP ---
     for i in range(args.max_iters):
         logger.info(f"#####ITERATION: {i}")
@@ -362,8 +362,8 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
         details_to_dump = {'title': persona_name, **persona_details}
         persona_yaml_string = yaml.dump(details_to_dump, default_flow_style=False, indent=4, sort_keys=False)
 
-        sample_top_prompts = AttackMemory.get_prompts_top(args.number_example_prompts)
-        sample_bot_prompts = AttackMemory.get_prompts_bot(args.number_example_prompts)
+        sample_top_prompts = attack_memory.get_prompts_top(args.number_example_prompts)
+        sample_bot_prompts = attack_memory.get_prompts_bot(args.number_example_prompts)
 
         prompt_ = MUTATOR_PROMPT.format(
             failed_examples_text=_format_example(sample_bot_prompts),
@@ -434,7 +434,7 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
                         "score": fit,
                         "persoa": selected_persona
                     }
-                    AttackMemory.add(candidate_memory)
+                    attack_memory.add(candidate_memory)
                     if "rejected" in ga_result:
                         status = ga_result
                     else:
