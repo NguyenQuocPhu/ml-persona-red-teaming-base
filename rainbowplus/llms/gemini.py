@@ -97,7 +97,7 @@ class GeminiLLM(BaseLLM):
                     logger.warning(f"⚠️ Prompt blocked by Google: {response.prompt_feedback.block_reason}")
                     return "I cannot answer." # Trả về text giả để code không crash
                 else:
-                    return ""
+                    return "None"
 
             except ResourceExhausted:
                 # Lỗi 429: Quá tải -> Ngủ lâu hơn
@@ -118,7 +118,7 @@ class GeminiLLM(BaseLLM):
                 logger.error(f"Generate Error: {e}")
                 break
         
-        return ""
+        return "None"
 
     def batch_generate(self, prompts: List[str], sampling_params: Dict[str, Any] = None) -> List[str]:
         """
