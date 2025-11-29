@@ -1,4 +1,3 @@
-
 #
 # For licensing see accompanying LICENSE file.
 # Copyright (C) 2025 Apple Inc. All Rights Reserved.
@@ -8,9 +7,10 @@ from typing import Any, Dict, List
 from rainbowplus.llms.vllm import vLLM
 from rainbowplus.llms.openai import LLMviaOpenAI
 from rainbowplus.llms.gemini import GeminiLLM
+import os
+import logging
 
-from google.colab import userdata
-
+logger = logging.getLogger(__name__)
 
 class LLMSwitcher:
     """Factory class for creating and managing different LLM implementations"""
@@ -27,6 +27,29 @@ class LLMSwitcher:
         self.model_kwargs = config.model_kwargs
         self._llm = self._create_llm()
 
+    def _get_gemini_api_key(self):
+        """Safely get Gemini API key from multiple sources"""
+        # Method 1: Check if API key is already in config
+        if hasattr(self.config, 'api_key') and self.config.api_key:
+            return self.config.api_key
+        
+        # Method 2: Try environment variable
+        api_key = os.environ.get('GEMINI_API_KEY')
+        if api_key:
+            return api_key
+        
+        # Method 3: Try Colab userdata (with proper error handling)
+        try:
+            from google.colab import userdata
+            api_key = userdata.get('GEMINI_API_KEY')
+            if api_key:
+                logger.info("✅ Loaded Gemini API key from Colab secrets")
+                return api_key
+        except Exception as e:
+            logger.warning(f"⚠️ Could not access Colab secrets: {e}")
+        
+        return None
+
     def _create_llm(self):
         """
         Create the appropriate LLM based on configuration
@@ -42,7 +65,12 @@ class LLMSwitcher:
         elif self._type == "openai":
             return LLMviaOpenAI(self.config)
         elif self._type == "gemini":
-            self.config.api_key = userdata.get('GEMINI_API_KEY')
+            # Get API key safely and add it to config
+            api_key = self._get_gemini_api_key()
+            if api_key:
+                self.config.api_key = api_key
+            else:
+                logger.warning("⚠️ No Gemini API key found. LLM may fail to initialize.")
             return GeminiLLM(self.config)
         else:
             raise ValueError(f"Unsupported LLM type: {self._type}")
