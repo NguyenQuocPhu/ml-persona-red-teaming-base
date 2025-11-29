@@ -31,9 +31,8 @@ class GeminiLLM(BaseLLM):
         self.config = config
         
         # --- THAY ĐỔI 2: Lấy Secret trên Colab ---
-        api = userdata.get('GEMINI_API_KEY')
         
-        genai.configure(api_key=api)
+        genai.configure(api_key="AIzaSyBcO7XwIQCBCMB0q4U2vehJUnjD2reFt0M")
         
         # config.model_kwargs là Dictionary
         self.model_name = config.model_kwargs.get("model", "gemini-1.5-flash")
