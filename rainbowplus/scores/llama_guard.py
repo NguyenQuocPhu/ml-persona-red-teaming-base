@@ -9,7 +9,7 @@ from typing import List
 from vllm import SamplingParams
 
 from rainbowplus.llms.vllm import vLLM
-
+from rainbowplus.switcher import LLMSwitcher
 # Safety evaluation template for meta-llama/Llama-Guard-3-1B
 TEMPLATE_EVALUATION = """<|begin_of_text|><|start_header_id|>user<|end_header_id|>
 
@@ -60,6 +60,8 @@ class LlamaGuard(vLLM):
             model_kwargs: Configuration dictionary for the model
         """
         super().__init__(model_kwargs)
+        switcher = LLMSwitcher(config) 
+        self.llm = switcher._create_llm()
 
     def get_name(self):
         """
