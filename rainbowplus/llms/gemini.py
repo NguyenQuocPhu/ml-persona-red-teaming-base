@@ -31,9 +31,9 @@ class GeminiLLM(BaseLLM):
         self.config = config
         
         # --- THAY ĐỔI 2: Lấy Secret trên Colab ---
+        api = userdata.get('GEMINI_API_KEY')
         
-        
-        genai.configure(api_key=config.api_key)
+        genai.configure(api_key=api)
         
         # config.model_kwargs là Dictionary
         self.model_name = config.model_kwargs.get("model", "gemini-1.5-flash")
@@ -135,7 +135,7 @@ class GeminiLLM(BaseLLM):
                 response = self.model.generate_content(
                     prompt, 
                     generation_config=generation_config,
-                    safety_settings=self.safety_settings
+                    #safety_settings=self.safety_settings
                 )
                 
                 # Track output tokens
