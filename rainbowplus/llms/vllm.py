@@ -1,8 +1,7 @@
 import os
 import multiprocessing
-import time
-import signal
-from typing import List
+import torch
+from typing import List, Any
 from rainbowplus.llms.base import BaseLLM
 
 def _vllm_worker_process(model_kwargs, device_id, input_q, output_q):
@@ -11,32 +10,39 @@ def _vllm_worker_process(model_kwargs, device_id, input_q, output_q):
         if device_id is not None:
             os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)
         
-        # 2. Import vLLM sau khi set biến môi trường
+        # 2. Import
         from vllm import LLM, SamplingParams
-        import torch
         
-        # 3. Dọn dẹp rác CUDA trước khi load (nếu có)
-        torch.cuda.empty_cache()
-
-        # 4. Khởi tạo
+        # 3. Khởi tạo
         llm = LLM(**model_kwargs)
         print(f"✅ [Worker {os.getpid()}] vLLM initialized on GPU {device_id}")
         
         while True:
             task = input_q.get()
-            if task is None: break # Tín hiệu dừng
+            if task is None: break
             
-            req_id, method, args = task
+            req_id, method, args, kwargs = task
             try:
                 result = None
                 if method == 'generate':
                     query, params_dict = args
                     outputs = llm.generate([query], SamplingParams(**params_dict))
-                    result = outputs[0].outputs[0].text if outputs else ""
+                    # Nếu cần logprobs (cho LlamaGuard), trả về object thô
+                    if params_dict.get("logprobs"):
+                        result = outputs[0] 
+                    else:
+                        result = outputs[0].outputs[0].text if outputs else ""
+                        
                 elif method == 'batch_generate':
                     queries, params_dict = args
                     outputs = llm.generate(queries, SamplingParams(**params_dict))
-                    result = [o.outputs[0].text for o in outputs]
+                    
+                    if params_dict.get("logprobs"):
+                        # Trả về list các output object (để tính điểm)
+                        result = outputs
+                    else:
+                        # Trả về list text (cho Target/Mutator)
+                        result = [o.outputs[0].text for o in outputs]
                 
                 output_q.put((req_id, result, None))
             except Exception as e:
@@ -44,8 +50,6 @@ def _vllm_worker_process(model_kwargs, device_id, input_q, output_q):
                 
     except Exception as e:
         print(f"❌ [Worker Error] Critical: {e}")
-        # Gửi lỗi về main process nếu khởi tạo thất bại
-        # (Cần cơ chế handshake tốt hơn trong thực tế, nhưng tạm thời print ra log)
 
 class vLLM(BaseLLM):
     def __init__(self, model_kwargs: dict):
@@ -60,7 +64,6 @@ class vLLM(BaseLLM):
         self.input_queue = ctx.Queue()
         self.output_queue = ctx.Queue()
         
-        # --- DAEMON = TRUE: Process con sẽ chết ngay khi Main chết ---
         self.process = ctx.Process(
             target=_vllm_worker_process,
             args=(self.model_kwargs, self.device, self.input_queue, self.output_queue),
@@ -69,20 +72,24 @@ class vLLM(BaseLLM):
         self.process.start()
         self.req_counter = 0
 
-    def _send_and_wait(self, method, args):
+    def _send_and_wait(self, method, args, kwargs=None):
         if not self.process.is_alive():
-            raise RuntimeError(f"vLLM Worker {self.device} is dead! Check logs for OOM.")
-        self.input_queue.put((self.req_counter, method, args))
+            raise RuntimeError(f"vLLM Worker {self.device} is dead!")
+        self.input_queue.put((self.req_counter, method, args, kwargs or {}))
         req_id, result, error = self.output_queue.get()
         self.req_counter += 1
         if error: raise error
         return result
 
     def get_name(self): return self.model_kwargs.get("model", "isolated-vllm")
-    def generate(self, q, p): return self._send_and_wait('generate', (q, p))
-    def batch_generate(self, q, p): return self._send_and_wait('batch_generate', (q, p))
+    
+    def generate(self, query: str, sampling_params: dict): 
+        return self._send_and_wait('generate', (query, sampling_params))
+        
+    def batch_generate(self, queries: List[str], sampling_params: dict): 
+        return self._send_and_wait('batch_generate', (queries, sampling_params))
 
     def __del__(self):
         if hasattr(self, 'process') and self.process.is_alive():
-            self.process.terminate() # Giết ngay lập tức
+            self.process.terminate()
             self.process.join(timeout=1)
