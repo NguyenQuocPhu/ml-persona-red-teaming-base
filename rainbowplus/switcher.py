@@ -9,6 +9,7 @@ from rainbowplus.llms.vllm import vLLM
 from rainbowplus.llms.openai import LLMviaOpenAI
 from rainbowplus.llms.gemini import GeminiLLM
 
+from google.colab import userdata
 
 
 class LLMSwitcher:
@@ -41,6 +42,7 @@ class LLMSwitcher:
         elif self._type == "openai":
             return LLMviaOpenAI(self.config)
         elif self._type == "gemini":
+            self.config.api_key = userdata.get('GEMINI_API_KEY')
             return GeminiLLM(self.config)
         else:
             raise ValueError(f"Unsupported LLM type: {self._type}")
