@@ -56,7 +56,9 @@ class GeminiLLM(BaseLLM):
         self.config = config
 
         # Acquire API key from environment or Colab userdata (if present)
-        self.api_key = self._get_api_key()
+        #self.api_key = self._get_api_key()
+        genai.configure(api_key = self.config.api_key)
+        """
         if self.api_key:
             genai.configure(api_key=self.api_key)
             logger.info("Gemini API configured from environment/colab.")
@@ -64,7 +66,7 @@ class GeminiLLM(BaseLLM):
             logger.warning(
                 "No Gemini API key found. GeminiLLM will not be able to call the remote API."
             )
-
+        """
         # Model name and client wrapper
         self.model_name = (
             getattr(config, "model_kwargs", {}).get("model")
