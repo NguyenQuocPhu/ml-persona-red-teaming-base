@@ -1,14 +1,17 @@
 import time
 import logging
 import google.generativeai as genai
-from typing import Any, Dict, List # Cần thêm List cho batch_generate
-
-# Import Exception chuẩn của Google
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
 from google.api_core.exceptions import ResourceExhausted, InternalServerError
+from typing import Any, Dict, List
 
-# Giữ nguyên phần import BaseLLM của dự án bạn
-
-from rainbowplus.llms.base import BaseLLM
+# Giữ nguyên import BaseLLM
+try:
+    from rainbowplus.llms.base import BaseLLM
+except ImportError:
+    class BaseLLM: 
+        def get_name(self): pass
+        def batch_generate(self): pass
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +24,12 @@ class GeminiLLM(BaseLLM):
         
         # 1. Cấu hình API Key & Model
         self.api_key = model_kwargs.get("api_key")
-        self.model_name = model_kwargs.get("model", "gemini-1.5-flash")
+        # Tự động xóa prefix 'models/' nếu có
+        raw_model_name = model_kwargs.get("model", "gemini-1.5-flash")
+        self.model_name = raw_model_name.replace("models/", "")
         
         # 2. Cấu hình Rate Limit (RPM)
-        self.rpm = model_kwargs.get("rpm", 10) 
+        self.rpm = model_kwargs.get("rpm", 5) 
         self.min_interval = 60.0 / float(self.rpm)
         self.last_call_time = 0.0
 
@@ -39,7 +44,6 @@ class GeminiLLM(BaseLLM):
         if self._model is None and self.api_key:
             self._model = genai.GenerativeModel(self.model_name)
 
-    # --- SỬA LỖI: Thêm hàm get_name theo yêu cầu của BaseLLM ---
     def get_name(self) -> str:
         return self.model_name
 
@@ -64,17 +68,36 @@ class GeminiLLM(BaseLLM):
             top_p=default_params.get("top_p", 0.9)
         )
 
+        # --- QUAN TRỌNG: Tắt bộ lọc an toàn (BLOCK_NONE) ---
+        safety_settings = {
+            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+        }
+        # ---------------------------------------------------
+
         for attempt in range(max_retries):
             try:
                 self._wait_for_rate_limit() # 1. Chờ RPM
 
-                response = self._model.generate_content(prompt, generation_config=gen_config)
+                # Gọi API với safety_settings
+                response = self._model.generate_content(
+                    prompt, 
+                    generation_config=gen_config,
+                    safety_settings=safety_settings
+                )
                 
                 self.last_call_time = time.time() # 2. Cập nhật thời gian
 
-                if response.text:
+                # Kiểm tra phản hồi an toàn
+                if response.candidates and response.candidates[0].content.parts:
                     return response.text
-                return ""
+                elif response.prompt_feedback and response.prompt_feedback.block_reason:
+                    logger.warning(f"⚠️ Prompt blocked by Google: {response.prompt_feedback.block_reason}")
+                    return "I cannot answer." # Trả về text giả để code không crash
+                else:
+                    return ""
 
             except ResourceExhausted:
                 # Lỗi 429: Quá tải -> Ngủ lâu hơn
@@ -87,12 +110,16 @@ class GeminiLLM(BaseLLM):
                 time.sleep(2)
             
             except Exception as e:
+                # Bắt lỗi Invalid operation (nếu safety filter vẫn lọt lưới)
+                if "Invalid operation" in str(e) or "finish_reason" in str(e):
+                    logger.warning("⚠️ Safety Filter Blocked (Finish Reason 2). Returning empty.")
+                    return "I cannot answer."
+                
                 logger.error(f"Generate Error: {e}")
                 break
         
         return ""
 
-    # --- SỬA LỖI: Thêm hàm batch_generate ---
     def batch_generate(self, prompts: List[str], sampling_params: Dict[str, Any] = None) -> List[str]:
         """
         Xử lý danh sách prompt tuần tự để đảm bảo an toàn Rate Limit.
@@ -102,11 +129,9 @@ class GeminiLLM(BaseLLM):
         logger.info(f"🚀 Bắt đầu batch generate cho {total} prompts với model {self.model_name}...")
         
         for i, prompt in enumerate(prompts):
-            # Gọi lại hàm generate (đã có sẵn logic chờ/ngủ bên trong)
             res = self.generate(prompt, sampling_params)
             results.append(res)
             
-            # Log tiến độ mỗi 10 câu để đỡ spam log
             if (i + 1) % 10 == 0:
                 logger.info(f"   ...Đã xử lý {i + 1}/{total} prompts.")
                 
