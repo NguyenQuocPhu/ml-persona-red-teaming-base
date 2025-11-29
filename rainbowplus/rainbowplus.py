@@ -364,10 +364,10 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
 
         sample_top_prompts = attack_memory.get_prompts_top(args.number_example_prompts)
         sample_bot_prompts = attack_memory.get_prompts_bot(args.number_example_prompts)
-        failed_yml_strings = [format_example(prompt) for prompt in sample_top_prompts]
-        failed_example_text = "\n\nHere's another example of an unwell-structured prompt:\n\n".join(failed_yml_strings)
-        success_yml_strings = [format_example(prompt) for prompt in sample_bot_prompts]
-        successful_example_text = "\n\nHere's another example of a well-structured prompt:\n\n".join(success_yml_strings)
+        failed_yml_strings = [format_example(entry) for entry in sample_top_prompts]
+        failed_example_text = "\n\nHere's another example of an unwell-structured prompt and persona:\n\n".join(failed_yml_strings)
+        success_yml_strings = [format_example(entry) for entry in sample_bot_prompts]
+        successful_example_text = "\n\nHere's another example of a well-structured prompt and persona:\n\n".join(success_yml_strings)
 
         prompt_ = MUTATOR_PROMPT.format(
             failed_examples_text=failed_example_text,
