@@ -9,6 +9,7 @@ persona_type: RegularAIUsers
 # Target LLM Configuration (Model bị tấn công)
 target_llm:
   type_: gemini
+  api_key: AIzaSyBcO7XwIQCBCMB0q4U2vehJUnjD2reFt0M
   model_kwargs:
     model: models/gemini-2.0-flash-exp
   sampling_params:
@@ -19,6 +20,7 @@ target_llm:
 # Mutator LLM Configuration (Model tấn công/biến đổi)
 mutator_llm: 
   type_: gemini
+  api_key: AIzaSyBcO7XwIQCBCMB0q4U2vehJUnjD2reFt0M
   # LƯU Ý: Tốt nhất nên dùng ${GEMINI_API_KEY} thay vì paste cứng key ở đây để tránh lỗi GitHub
   model_kwargs:
     model: models/gemini-2.0-flash-exp
