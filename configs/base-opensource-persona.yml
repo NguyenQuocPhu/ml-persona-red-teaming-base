@@ -41,7 +41,7 @@ fitness_llm:
   model_kwargs:
     model: "meta-llama/Llama-Guard-3-1B"
     trust_remote_code: true
-    gpu_memory_utilization: 0.8  # Chiếm 40% GPU 0
+    gpu_memory_utilization: 0.75  # Chiếm 40% GPU 0
     max_model_len: 2048
     dtype: "half"
     swap_space: 8
