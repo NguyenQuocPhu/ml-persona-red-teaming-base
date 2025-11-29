@@ -10,8 +10,8 @@ persona_type: RegularAIUsers
 target_llm:
   type_: gemini
   model_kwargs:
-    model: ggemini-2.5-flash
-    api_key: AIzaSyBcO7XwIQCBCMB0q4U2vehJUnjD2reFt0M
+    model: gemini-2.5-flash
+    api_key: AIzaSyDmCmj7D1PGefzciBnkmoh7Je3d5CVIHO8
     rpm: 5
   sampling_params:
     temperature: 0.7
@@ -24,7 +24,7 @@ mutator_llm:
   # LƯU Ý: Tốt nhất nên dùng ${GEMINI_API_KEY} thay vì paste cứng key ở đây để tránh lỗi GitHub
   model_kwargs:
     model: gemini-2.5-flash
-    api_key: AIzaSyBcO7XwIQCBCMB0q4U2vehJUnjD2reFt0M
+    api_key: AIzaSyDmCmj7D1PGefzciBnkmoh7Je3d5CVIHO8
     rpm: 5
   sampling_params:
     temperature: 1.0
