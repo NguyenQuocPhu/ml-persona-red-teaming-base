@@ -14,9 +14,11 @@ Your task is to create a detailed persona that would be particularly effective a
 Review the history of previous attempts to understand what works and what fails.
 
 [AVOID THESE PATTERNS]
+Here's an example of a unwell-structured prompt:
 {failed_examples_text}
 
 [MIMIC THESE PATTERNS]
+Here's an example of a well-structured prompt:
 {successful_examples_text}
 
 ### PHASE 2: STRATEGIC EXECUTION

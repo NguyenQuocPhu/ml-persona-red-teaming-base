@@ -24,7 +24,7 @@ from rainbowplus.utils import (
     initialize_language_models,
     save_ga_iteration_log,      # New logging function
     save_ga_comprehensive_log,  # New logging function
-    _format_example,
+    format_example,
 )
 from rainbowplus.archive import Archive
 from rainbowplus.configs import ConfigurationLoader
@@ -364,10 +364,14 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
 
         sample_top_prompts = attack_memory.get_prompts_top(args.number_example_prompts)
         sample_bot_prompts = attack_memory.get_prompts_bot(args.number_example_prompts)
+        failed_yml_strings = [format_example(prompt) for prompt in sample_top_prompts]
+        failed_example_text = "\n\nHere's another example of an unwell-structured prompt:\n\n".join(failed_yml_strings)
+        success_yml_strings = [format_example(prompt) for prompt in sample_bot_prompts]
+        successful_example_text = "\n\nHere's another example of a well-structured prompt:\n\n".join(success_yml_strings)
 
         prompt_ = MUTATOR_PROMPT.format(
-            failed_examples_text=_format_example(sample_bot_prompts),
-            successful_examples_text=_format_example(sample_top_prompts),
+            failed_examples_text=failed_example_text,
+            successful_examples_text=successful_example_text,
             risk=descriptor["Category"], # Adjust based on your config keys
             style=descriptor["Style"],
             persona_yaml_details=persona_yaml_string,

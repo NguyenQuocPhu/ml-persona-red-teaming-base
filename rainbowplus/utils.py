@@ -382,7 +382,7 @@ def save_comprehensive_log(
 
     logger.info(f"Comprehensive log saved to {log_path}")
 
-def _format_example(entry: Dict[str, Any]) -> str:
+def format_example(entry: Dict[str, Any]) -> str:
     """
     Chuyển đổi entry thành chuỗi YAML.
     
