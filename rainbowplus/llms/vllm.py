@@ -1,7 +1,7 @@
 import os
 import multiprocessing
 import torch
-from typing import List, Any
+from typing import List, Any, Dict
 from rainbowplus.llms.base import BaseLLM
 
 def _vllm_worker_process(model_kwargs, device_id, input_q, output_q):
@@ -27,7 +27,6 @@ def _vllm_worker_process(model_kwargs, device_id, input_q, output_q):
                 if method == 'generate':
                     query, params_dict = args
                     outputs = llm.generate([query], SamplingParams(**params_dict))
-                    # Nếu cần logprobs (cho LlamaGuard), trả về object thô
                     if params_dict.get("logprobs"):
                         result = outputs[0] 
                     else:
@@ -38,10 +37,8 @@ def _vllm_worker_process(model_kwargs, device_id, input_q, output_q):
                     outputs = llm.generate(queries, SamplingParams(**params_dict))
                     
                     if params_dict.get("logprobs"):
-                        # Trả về list các output object (để tính điểm)
                         result = outputs
                     else:
-                        # Trả về list text (cho Target/Mutator)
                         result = [o.outputs[0].text for o in outputs]
                 
                 output_q.put((req_id, result, None))
@@ -52,8 +49,26 @@ def _vllm_worker_process(model_kwargs, device_id, input_q, output_q):
         print(f"❌ [Worker Error] Critical: {e}")
 
 class vLLM(BaseLLM):
-    def __init__(self, model_kwargs: dict):
-        self.model_kwargs = model_kwargs.copy()
+    def __init__(self, config_or_dict: Any):
+        """
+        Khởi tạo vLLM Wrapper.
+        Hỗ trợ input là Dictionary HOẶC đối tượng LLMConfig.
+        """
+        # --- FIX: Xử lý thông minh đầu vào (Config Object vs Dict) ---
+        if hasattr(config_or_dict, "model_kwargs"):
+            # Nếu là object LLMConfig, trích xuất dict từ thuộc tính model_kwargs
+            self.model_kwargs = config_or_dict.model_kwargs.copy()
+        elif isinstance(config_or_dict, dict):
+            # Nếu đã là dict thì copy luôn
+            self.model_kwargs = config_or_dict.copy()
+        else:
+            # Trường hợp lạ, cố gắng ép kiểu hoặc để rỗng
+            try:
+                self.model_kwargs = dict(config_or_dict).copy()
+            except:
+                self.model_kwargs = {}
+        # -------------------------------------------------------------
+
         self.device = self.model_kwargs.pop("device", None)
         
         # Xử lý config cũ
