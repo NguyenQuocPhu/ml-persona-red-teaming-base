@@ -392,11 +392,10 @@ def format_example(entry: Dict[str, Any]) -> str:
     3. DETAILS (Các thông tin còn lại của Persona)
     """
     # 1. Unpack dữ liệu
-    persona_tuple = entry.get('persona')
+    details = entry.get('persona', {})
     prompt_text = entry.get('prompt', '').strip()
     
 
-    title, details = persona_tuple
     
     # 2. Tạo Dict mới (Ordered)
     ordered_data = {}
@@ -406,7 +405,6 @@ def format_example(entry: Dict[str, Any]) -> str:
         ordered_data['generated_attack_prompt'] = prompt_text
     
     # Tiếp theo là Title
-    ordered_data['title'] = title
     
     # Cuối cùng là các chi tiết Persona
     for key, value in details.items():
