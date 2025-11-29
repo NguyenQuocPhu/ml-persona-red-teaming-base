@@ -26,18 +26,9 @@ class GeminiLLM(BaseLLM):
         self.config = config
         
         # --- THAY ĐỔI 2: Lấy Secret trên Colab ---
-        try:
-            # Trong Colab: Vào biểu tượng Chìa khóa (bên trái) -> Thêm secret tên "GEMINI_API_KEY"
-            api_key = userdata.get("GEMINI_API_KEY")
-        except Exception:
-            # Fallback: Nếu user chưa set trong Userdata, thử lấy từ biến môi trường hoặc báo lỗi
-            import os
-            api_key = os.environ.get("GEMINI_API_KEY")
-
-        if not api_key:
-            raise ValueError("Gemini API Key is missing. Please add 'GEMINI_API_KEY' to Colab Secrets (Key icon on the left sidebar).")
         
-        genai.configure(api_key=api_key)
+        
+        genai.configure(api_key=config.api_key)
         
         # config.model_kwargs là Dictionary
         self.model_name = config.model_kwargs.get("model", "gemini-1.5-flash")
