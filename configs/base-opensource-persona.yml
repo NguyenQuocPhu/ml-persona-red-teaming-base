@@ -28,7 +28,7 @@ mutator_llm:
   type_: gemini
   # LƯU Ý: Tốt nhất nên dùng ${GEMINI_API_KEY} thay vì paste cứng key ở đây để tránh lỗi GitHub
   model_kwargs:
-    model: gemma-3-4b
+    model: gemma-3-4b-it
     api_key: AIzaSyAmjfGeILvf-YbZiV7RHFeCzEiXVrrjb9A
     rpm: 20
   sampling_params:
