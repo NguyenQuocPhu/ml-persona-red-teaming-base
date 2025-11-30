@@ -6,8 +6,8 @@
 #
 
 """
-Analysis script for comprehensive logs from RainbowPlus.
-Updated to include Attack Memory analysis and fix variable naming errors.
+Analysis script for comprehensive GA logs from RainbowPlus.
+Updated to include Attack Memory analysis and fix format string errors.
 
 Usage:
     python analyze_comprehensive_logs.py <directory>
@@ -119,17 +119,20 @@ def analyze_rejection_patterns(log_data):
     similarity_rejected = reason_counts.get('similarity_too_high', 0)
     fitness_rejected = reason_counts.get('fitness_too_low', 0) + reason_counts.get('rejected_fitness_low', 0)
     
-    # Calculate success rate
+    # GA specific rejection (Passed hard filters but failed elite competition)
+    ga_rejected = reason_counts.get('rejected_not_elite', 0) 
+    
     success_rate = accepted_count / total_prompts if total_prompts > 0 else 0
     
-    # Analyze score distributions
-    all_score_values = []
-    all_similarity_values = []
-    
-    for key in all_scores:
-        all_score_values.extend(all_scores[key])
-    for key in all_similarities:
-        all_similarity_values.extend(all_similarities[key])
+    # Score stats helper
+    def get_flat_values(archive_dict):
+        values = []
+        for key in archive_dict:
+            values.extend(archive_dict[key])
+        return values
+
+    all_score_values = get_flat_values(all_scores)
+    all_similarity_values = get_flat_values(all_similarities)
     
     def get_stats(values):
         if not values: return {'mean': 0, 'std': 0, 'min': 0, 'max': 0}
@@ -145,6 +148,7 @@ def analyze_rejection_patterns(log_data):
         'accepted_count': accepted_count,
         'similarity_rejected': similarity_rejected,
         'fitness_rejected': fitness_rejected,
+        'ga_rejected': ga_rejected, # New metric for GA density rejection
         'success_rate': success_rate,
         'reason_counts': dict(reason_counts),
         'score_stats': get_stats(all_score_values),
@@ -155,16 +159,46 @@ def analyze_rejection_patterns(log_data):
     }
 
 
+def analyze_ga_state(log_data):
+    """Analyze the internal state of the Growing Archive if present."""
+    if 'ga_state' not in log_data:
+        return None
+        
+    ga_state = log_data['ga_state']
+    n_centroids = ga_state.get('n_centroids', 0)
+    dmin = ga_state.get('dmin', 0)
+    elites = ga_state.get('elites', {})
+    
+    # Extract prompts from elites to calculate diversity of the survivors
+    elite_prompts = []
+    for elite_data in elites.values():
+        if isinstance(elite_data, dict) and 'prompt' in elite_data:
+            elite_prompts.append(elite_data['prompt'])
+            
+    # Reuse calculation function
+    lexical = calculate_lexical_diversity({'temp': elite_prompts})
+    
+    return {
+        'n_centroids': n_centroids,
+        'dmin': dmin,
+        'n_elites': len(elites),
+        'elite_diversity': lexical['diversity_score']
+    }
+
+
 def analyze_by_category(log_data):
     """Analyze rejection patterns by category."""
     rejection_reasons = log_data.get('rejection_reasons', {})
     all_scores = log_data.get('all_scores', {})
     
     category_analysis = {}
-    success_statuses = {'accepted', 'added_new_niche', 'replaced_novelty', 'replaced_fitness'}
-
+    
+    # Define success statuses
+    success_statuses = {'accepted', 'added_new_niche', 'replaced_novelty', 'replaced_fitness', 'replaced_fitness_improvement'}
+    
     for key, reasons in rejection_reasons.items():
         try:
+            # Handle tuple string representation
             category = eval(key)[0] if isinstance(key, str) else key[0]
         except:
             category = "unknown"
@@ -176,7 +210,7 @@ def analyze_by_category(log_data):
                 'scores': []
             }
         
-        for reason in reasons:
+        for i, reason in enumerate(reasons):
             category_analysis[category]['total'] += 1
             if reason in success_statuses:
                 category_analysis[category]['accepted'] += 1
@@ -202,7 +236,7 @@ def analyze_by_persona(log_data):
     all_scores = log_data.get('all_scores', {})
     
     persona_analysis = {}
-    success_statuses = {'accepted', 'added_new_niche', 'replaced_novelty', 'replaced_fitness'}
+    success_statuses = {'accepted', 'added_new_niche', 'replaced_novelty', 'replaced_fitness', 'replaced_fitness_improvement'}
 
     for key, reasons in rejection_reasons.items():
         try:
@@ -250,13 +284,13 @@ def analyze_attack_memory(memory_data):
     }
 
 def calculate_lexical_diversity(log_data):
-    # Handle both archive structure and list input
+    # Handle both archive structure and list input (via temp helper)
     if 'all_prompts' in log_data:
         all_prompts = log_data['all_prompts']
         flat_prompts = []
         for key, prompts in all_prompts.items():
             flat_prompts.extend(prompts)
-    elif 'temp' in log_data: # Helper for list input
+    elif 'temp' in log_data: 
         flat_prompts = log_data['temp']
     else:
         return {'diversity_score': 0, 'unique_prompts': 0, 'total_prompts': 0}
@@ -271,6 +305,7 @@ def calculate_lexical_diversity(log_data):
     }
 
 def calculate_embedding_diversity(log_data):
+    # Extract prompts
     if 'all_prompts' in log_data:
         all_prompts = log_data['all_prompts']
         flat_prompts = []
@@ -284,17 +319,21 @@ def calculate_embedding_diversity(log_data):
     if len(flat_prompts) < 2:
         return 0.0
     
-    # Limit to 1000 samples for speed in analysis script
+    # Optimization: Limit samples for speed in analysis script
     if len(flat_prompts) > 1000:
         flat_prompts = np.random.choice(flat_prompts, 1000, replace=False)
 
-    model = SentenceTransformer('all-MiniLM-L6-v2')
-    embeddings = model.encode(flat_prompts, show_progress_bar=False)
-    dists = cosine_distances(embeddings)
-    n = len(flat_prompts)
-    triu_indices = np.triu_indices(n, k=1)
-    avg_dist = dists[triu_indices].mean() if len(triu_indices[0]) > 0 else 0.0
-    return float(avg_dist)
+    try:
+        model = SentenceTransformer('all-MiniLM-L6-v2')
+        embeddings = model.encode(flat_prompts, show_progress_bar=False)
+        dists = cosine_distances(embeddings)
+        n = len(flat_prompts)
+        triu_indices = np.triu_indices(n, k=1)
+        avg_dist = dists[triu_indices].mean() if len(triu_indices[0]) > 0 else 0.0
+        return float(avg_dist)
+    except Exception as e:
+        print(f"Warning: Embedding diversity calc failed: {e}")
+        return 0.0
 
 def calculate_self_bleu(log_data, n=4):
     if 'all_prompts' in log_data:
@@ -309,7 +348,7 @@ def calculate_self_bleu(log_data, n=4):
     
     if len(flat_prompts) < 2: return 0.0
     
-    # Limit for speed
+    # Optimization: Limit samples
     if len(flat_prompts) > 500:
         flat_prompts = np.random.choice(flat_prompts, 500, replace=False)
 
@@ -323,34 +362,28 @@ def calculate_self_bleu(log_data, n=4):
         scores.append(score)
     return float(np.mean(scores)) if scores else 0.0
 
-def analyze_ga_state(log_data):
-    """Analyze the internal state of the Growing Archive if present."""
-    if 'ga_state' not in log_data:
-        return None
-        
-    ga_state = log_data['ga_state']
-    n_centroids = ga_state.get('n_centroids', 0)
-    dmin = ga_state.get('dmin', 0)
+def calculate_ga_metrics(log_data):
+    """Calculate metrics specifically for the Growing Archive state."""
+    ga_state = log_data.get('ga_state', {})
     elites = ga_state.get('elites', {})
     
     elite_prompts = []
-    for elite_data in elites.values():
-        if isinstance(elite_data, dict) and 'prompt' in elite_data:
-            elite_prompts.append(elite_data['prompt'])
-            
-    # Calculate diversity of the surviving elites
-    # Using a temp dictionary to reuse the function
-    lexical = calculate_lexical_diversity({'temp': elite_prompts})
+    for e in elites.values():
+        if 'prompt' in e: elite_prompts.append(e['prompt'])
+        
+    if not elite_prompts: return {}
+    
+    # Calculate diversity of elites
+    unique = len(set(elite_prompts))
+    lex_div = unique / len(elite_prompts) if elite_prompts else 0
     
     return {
-        'n_centroids': n_centroids,
-        'dmin': dmin,
-        'n_elites': len(elites),
-        'elite_diversity': lexical['diversity_score']
+        'n_centroids': ga_state.get('n_centroids', 0),
+        'elite_lexical_diversity': lex_div,
+        'elite_count': len(elite_prompts)
     }
 
 def calculate_comprehensive_metrics(log_data, num_iterations=None, regular_log_path=None):
-    """Calculate metrics including Iteration ASR."""
     all_prompts = log_data.get('all_prompts', {})
     rejection_reasons = log_data.get('rejection_reasons', {})
     all_iterations = log_data.get('all_iterations', {}) 
@@ -449,7 +482,15 @@ def print_analysis(analysis_results, category_analysis, persona_analysis=None, m
     if ga_stats:
         print(f"\nGROWING ARCHIVE STATE:")
         print(f"  Active Centroids: {ga_stats['n_centroids']}")
-        print(f"  Threshold (dmin): {ga_stats['dmin']:.4f}")
+        
+        # --- SỬA LỖI FORMAT Ở ĐÂY ---
+        # Kiểm tra kiểu dữ liệu trước khi format
+        dmin_val = ga_stats['dmin']
+        if isinstance(dmin_val, (int, float)):
+             print(f"  Threshold (dmin): {dmin_val:.4f}")
+        else:
+             print(f"  Threshold (dmin): {dmin_val}")
+             
         print(f"  Survivor Diversity: {ga_stats['elite_diversity']:.3f}")
 
     if mem_stats:
@@ -494,14 +535,14 @@ def main():
         max_iterations = args.max_iterations or max_iters_from_logs
         
         # 3. Basic Diversity
-        lexical = calculate_lexical_diversity(log_data)
-        embedding = calculate_embedding_diversity(log_data)
-        bleu = calculate_self_bleu(log_data)
+        lexical_diversity = calculate_lexical_diversity(log_data)
+        embedding_diversity = calculate_embedding_diversity(log_data)
+        self_bleu = calculate_self_bleu(log_data)
         
         print("\nDIVERSITY SCORES:")
-        print(f"  Lexical diversity: {lexical['diversity_score']:.3f}")
-        print(f"  Embedding diversity: {embedding:.3f}")
-        print(f"  Self-BLEU: {bleu:.3f}")
+        print(f"  Lexical diversity: {lexical_diversity['diversity_score']:.3f}")
+        print(f"  Embedding diversity: {embedding_diversity:.3f}")
+        print(f"  Self-BLEU: {self_bleu:.3f}")
         
         # GA Specific Analysis
         ga_stats = analyze_ga_state(log_data)
@@ -530,9 +571,9 @@ def main():
             'log_directory': args.directory,
             'comprehensive_metrics': metrics,
             'diversity': {
-                'lexical': lexical,
-                'embedding': embedding,
-                'self_bleu': bleu,
+                'lexical': lexical_diversity,
+                'embedding': embedding_diversity,
+                'self_bleu': self_bleu,
             },
             'ga_metrics': ga_stats,
             'attack_memory_stats': mem_stats,
