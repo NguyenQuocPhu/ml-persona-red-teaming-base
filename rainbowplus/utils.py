@@ -8,7 +8,7 @@ import json
 import logging
 import sys
 import os
-
+from pathlib import Path
 from typing import TypeVar, List, Dict, Any
 from datasets import load_dataset
 from rainbowplus.switcher import LLMSwitcher
