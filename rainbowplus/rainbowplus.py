@@ -25,6 +25,7 @@ from rainbowplus.utils import (
     save_ga_iteration_log,      # New logging function
     save_ga_comprehensive_log,  # New logging function
     format_example,
+    save_attack_memory_log,
 )
 from rainbowplus.archive import Archive
 from rainbowplus.configs import ConfigurationLoader
@@ -484,6 +485,8 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
     # Final Save
     final_ts = time.strftime(r"%Y%m%d-%H%M%S")
     save_ga_iteration_log(log_dir, GA, final_ts, iteration=-1, max_iters=args.max_iters)
+    
+    save_attack_memory_log(log_dir, attack_memory, final_ts)
     
     save_ga_comprehensive_log(
         log_dir, GA,

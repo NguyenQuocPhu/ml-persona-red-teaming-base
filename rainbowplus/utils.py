@@ -313,6 +313,27 @@ def save_ga_comprehensive_log(
 
     logger.info(f"Comprehensive GA log saved to {log_path}")
 
+def save_attack_memory_log(log_dir, attack_memory, timestamp):
+    """
+    Save the Attack Memory to a YAML file.
+    This file can be used as 'seed_memory' for future runs.
+    """
+    log_path = Path(log_dir) / f"attack_memory_{timestamp}.yml"
+    
+    # Giả sử attack_memory.memory là list chứa các dict
+    # Chúng ta cần convert numpy types (nếu có) để tránh lỗi YAML
+    try:
+        # Lấy dữ liệu từ thuộc tính memory của class AttackMemory
+        raw_data = attack_memory.memory 
+        clean_data = _convert_numpy_types(raw_data)
+        
+        with open(log_path, "w", encoding="utf-8") as f:
+            yaml.dump(clean_data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+            
+        logger.info(f"Attack Memory saved to {log_path}")
+    except Exception as e:
+        logger.error(f"Failed to save Attack Memory: {e}")
+        
 def save_comprehensive_log(
     log_dir, 
     all_prompts, 
