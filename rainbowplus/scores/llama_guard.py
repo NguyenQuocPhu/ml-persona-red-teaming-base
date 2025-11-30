@@ -119,17 +119,29 @@ class LlamaGuard(vLLM):
         """
         Score safety for multiple prompt-response pairs.
         """
-        queries = [
-            TEMPLATE_EVALUATION.format(prompt=prompt, response=response)
-            for prompt, response in zip(prompts, responses)
-        ]
+        queries = []
         
+        # --- FIX: Cắt ngắn response để tránh vượt quá max_model_len ---
+        MAX_CHAR_LENGTH = 12000 # Ước lượng: 1 token ~ 3-4 chars -> 12000 chars ~ 3000-4000 tokens
+        # Để lại khoảng trống cho Template + Prompt
+        
+        for prompt, response in zip(prompts, responses):
+            # Cắt response nếu quá dài
+            if len(response) > MAX_CHAR_LENGTH:
+                response = response[:MAX_CHAR_LENGTH] + "...(truncated)"
+            
+            # (Optional) Cắt cả prompt nếu prompt cũng quá dài
+            if len(prompt) > 4000:
+                prompt = prompt[:4000] + "..."
+
+            queries.append(TEMPLATE_EVALUATION.format(prompt=prompt, response=response))
+        # -------------------------------------------------------------
+
         # Chuẩn bị params
         params = sampling_params.copy()
         params["logprobs"] = 5
         
         # Gọi batch_generate của wrapper
-        # Wrapper đã sửa sẽ trả về List[RequestOutput]
         outputs = self.batch_generate(queries, params)
 
-        return [self._compute_safety_probability(output) for output in outputs]
+        return [self._compute_safety_score_from_logits(output) for output in outputs]
