@@ -324,7 +324,7 @@ def save_attack_memory_log(log_dir, attack_memory, timestamp):
     # Chúng ta cần convert numpy types (nếu có) để tránh lỗi YAML
     try:
         # Lấy dữ liệu từ thuộc tính memory của class AttackMemory
-        raw_data = attack_memory.memory 
+        raw_data = attack_memory.entries_top + attack_memory.entries_bot
         clean_data = _convert_numpy_types(raw_data)
         
         with open(log_path, "w", encoding="utf-8") as f:
@@ -333,7 +333,7 @@ def save_attack_memory_log(log_dir, attack_memory, timestamp):
         logger.info(f"Attack Memory saved to {log_path}")
     except Exception as e:
         logger.error(f"Failed to save Attack Memory: {e}")
-        
+
 def save_comprehensive_log(
     log_dir, 
     all_prompts, 
