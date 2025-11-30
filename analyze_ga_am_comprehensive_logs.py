@@ -7,7 +7,7 @@
 
 """
 Analysis script for comprehensive logs from RainbowPlus.
-Updated to include Attack Memory analysis.
+Updated to include Attack Memory analysis and fix variable naming errors.
 
 Usage:
     python analyze_comprehensive_logs.py <directory>
@@ -249,86 +249,67 @@ def analyze_attack_memory(memory_data):
         'sample_entries': memory_data[:3]
     }
 
-
-def print_analysis(analysis_results, category_analysis, persona_analysis=None, mem_stats=None):
-    """Print formatted analysis results."""
-    print("=" * 60)
-    print("COMPREHENSIVE LOG ANALYSIS")
-    print("=" * 60)
-    
-    print(f"\nOVERALL STATISTICS:")
-    print(f"Total prompts generated: {analysis_results['total_prompts']}")
-    print(f"Successfully accepted: {analysis_results['accepted_count']}")
-    print(f"  - Added New Niche: {analysis_results.get('added_new_niche', 0)}")
-    print(f"  - Replaced (Novelty): {analysis_results.get('replaced_novelty', 0)}")
-    print(f"  - Replaced (Fitness): {analysis_results.get('replaced_fitness', 0)}")
-    print(f"Rejected (Similarity): {analysis_results['similarity_rejected']}")
-    print(f"Rejected (Fitness): {analysis_results['fitness_rejected']}")
-    print(f"Success rate: {analysis_results['success_rate']:.2%}")
-    
-    print(f"\nSCORE STATISTICS:")
-    s = analysis_results['score_stats']
-    print(f"  Mean: {s['mean']:.3f}, Max: {s['max']:.3f}")
-
-    if mem_stats:
-        print(f"\nATTACK MEMORY STATISTICS:")
-        print(f"  Total Saved: {mem_stats['total_entries']}")
-        print(f"  Avg Score: {mem_stats['avg_score']:.3f}")
-        print(f"  Max Score: {mem_stats['max_score']:.3f}")
-        print("  Sample Entries:")
-        for i, e in enumerate(mem_stats['sample_entries']):
-             p = e.get('prompt', '')[:50].replace('\n', ' ')
-             print(f"    {i+1}. [{e.get('score'):.2f}] {p}...")
-
-    print(f"\nCATEGORY ANALYSIS:")
-    for category, data in category_analysis.items():
-        print(f"  {category:<20} | Total: {data['total']:<4} | Accepted: {data['accepted']:<4} ({data['success_rate']:.1%})")
-
-
 def calculate_lexical_diversity(log_data):
-    all_prompts = log_data.get('all_prompts', {})
-    flat_prompts = []
-    for key, prompts in all_prompts.items():
-        flat_prompts.extend(prompts)
-    
-    if not flat_prompts: return {'diversity_score': 0}
-    
+    # Handle both archive structure and list input
+    if 'all_prompts' in log_data:
+        all_prompts = log_data['all_prompts']
+        flat_prompts = []
+        for key, prompts in all_prompts.items():
+            flat_prompts.extend(prompts)
+    elif 'temp' in log_data: # Helper for list input
+        flat_prompts = log_data['temp']
+    else:
+        return {'diversity_score': 0, 'unique_prompts': 0, 'total_prompts': 0}
+
     total = len(flat_prompts)
     unique = len(set(flat_prompts))
-    return {'total_prompts': total, 'unique_prompts': unique, 'diversity_score': unique / total}
-
+    diversity_score = unique / total if total > 0 else 0
+    return {
+        'total_prompts': total,
+        'unique_prompts': unique,
+        'diversity_score': diversity_score
+    }
 
 def calculate_embedding_diversity(log_data):
-    all_prompts = log_data.get('all_prompts', {})
-    flat_prompts = []
-    for key, prompts in all_prompts.items():
-        flat_prompts.extend(prompts)
+    if 'all_prompts' in log_data:
+        all_prompts = log_data['all_prompts']
+        flat_prompts = []
+        for key, prompts in all_prompts.items():
+            flat_prompts.extend(prompts)
+    elif 'temp' in log_data:
+        flat_prompts = log_data['temp']
+    else:
+        return 0.0
     
-    if len(flat_prompts) < 2: return 0.0
+    if len(flat_prompts) < 2:
+        return 0.0
     
-    # Sample for speed
+    # Limit to 1000 samples for speed in analysis script
     if len(flat_prompts) > 1000:
         flat_prompts = np.random.choice(flat_prompts, 1000, replace=False)
 
-    try:
-        model = SentenceTransformer('all-MiniLM-L6-v2')
-        embeddings = model.encode(flat_prompts, show_progress_bar=False)
-        dists = cosine_distances(embeddings)
-        n = len(flat_prompts)
-        triu_indices = np.triu_indices(n, k=1)
-        avg_dist = dists[triu_indices].mean() if len(triu_indices[0]) > 0 else 0.0
-        return float(avg_dist)
-    except Exception: return 0.0
-
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+    embeddings = model.encode(flat_prompts, show_progress_bar=False)
+    dists = cosine_distances(embeddings)
+    n = len(flat_prompts)
+    triu_indices = np.triu_indices(n, k=1)
+    avg_dist = dists[triu_indices].mean() if len(triu_indices[0]) > 0 else 0.0
+    return float(avg_dist)
 
 def calculate_self_bleu(log_data, n=4):
-    all_prompts = log_data.get('all_prompts', {})
-    flat_prompts = []
-    for key, prompts in all_prompts.items():
-        flat_prompts.extend(prompts)
+    if 'all_prompts' in log_data:
+        all_prompts = log_data['all_prompts']
+        flat_prompts = []
+        for key, prompts in all_prompts.items():
+            flat_prompts.extend(prompts)
+    elif 'temp' in log_data:
+        flat_prompts = log_data['temp']
+    else:
+        return 0.0
     
     if len(flat_prompts) < 2: return 0.0
     
+    # Limit for speed
     if len(flat_prompts) > 500:
         flat_prompts = np.random.choice(flat_prompts, 500, replace=False)
 
@@ -342,58 +323,90 @@ def calculate_self_bleu(log_data, n=4):
         scores.append(score)
     return float(np.mean(scores)) if scores else 0.0
 
-
-def calculate_ga_metrics(log_data):
-    """Calculate metrics specifically for the Growing Archive state."""
-    ga_state = log_data.get('ga_state', {})
+def analyze_ga_state(log_data):
+    """Analyze the internal state of the Growing Archive if present."""
+    if 'ga_state' not in log_data:
+        return None
+        
+    ga_state = log_data['ga_state']
+    n_centroids = ga_state.get('n_centroids', 0)
+    dmin = ga_state.get('dmin', 0)
     elites = ga_state.get('elites', {})
     
     elite_prompts = []
-    for e in elites.values():
-        if 'prompt' in e: elite_prompts.append(e['prompt'])
-        
-    if not elite_prompts: return {}
-    
-    # Calculate diversity of elites
-    unique = len(set(elite_prompts))
-    lex_div = unique / len(elite_prompts) if elite_prompts else 0
+    for elite_data in elites.values():
+        if isinstance(elite_data, dict) and 'prompt' in elite_data:
+            elite_prompts.append(elite_data['prompt'])
+            
+    # Calculate diversity of the surviving elites
+    # Using a temp dictionary to reuse the function
+    lexical = calculate_lexical_diversity({'temp': elite_prompts})
     
     return {
-        'n_centroids': ga_state.get('n_centroids', 0),
-        'elite_lexical_diversity': lex_div,
-        'elite_count': len(elite_prompts)
+        'n_centroids': n_centroids,
+        'dmin': dmin,
+        'n_elites': len(elites),
+        'elite_diversity': lexical['diversity_score']
     }
 
-
 def calculate_comprehensive_metrics(log_data, num_iterations=None, regular_log_path=None):
+    """Calculate metrics including Iteration ASR."""
     all_prompts = log_data.get('all_prompts', {})
     rejection_reasons = log_data.get('rejection_reasons', {})
+    all_iterations = log_data.get('all_iterations', {}) 
     
-    flat_prompts = []
     flat_reasons = []
-    for key, prompts in all_prompts.items():
-        flat_prompts.extend(prompts)
-        flat_reasons.extend(rejection_reasons.get(key, [None]*len(prompts)))
+    flat_iterations = []
     
-    total_prompts = len(flat_prompts)
-    
-    # Filter pass rate
-    num_pass_filter = sum(1 for r in flat_reasons if r != 'similarity_too_high')
-    filter_pass_rate = num_pass_filter / total_prompts if total_prompts > 0 else 0
+    # Flatten and align data
+    for key in all_prompts:
+        count = len(all_prompts[key])
+        reasons = rejection_reasons.get(key, [])
+        iters = all_iterations.get(key, [])
+        
+        # Pad if necessary
+        flat_reasons.extend(reasons[:count] + ['unknown']*(count-len(reasons)))
+        flat_iterations.extend(iters[:count] + [-1]*(count-len(iters)))
 
-    # ASR (GA Success)
-    ga_success = {'accepted', 'added_new_niche', 'replaced_novelty', 'replaced_fitness', 'replaced_fitness_improvement'}
+    total_prompts = len(flat_reasons)
+    
+    # Success statuses
+    ga_success = {
+        'accepted', 'added_new_niche', 'replaced_novelty', 
+        'replaced_fitness', 'replaced_fitness_improvement', 'rejected_not_elite'
+    }
+    
     num_unsafe = sum(1 for r in flat_reasons if r in ga_success)
+    
+    # ASR metrics
     ASR = num_unsafe / total_prompts if total_prompts > 0 else 0
+    
+    # Filter Pass Rate
+    hard_filters = ['similarity_too_high', 'fitness_too_low', 'rejected_fitness_low']
+    num_pass_filter = sum(1 for r in flat_reasons if r not in hard_filters)
+    filter_pass_rate = num_pass_filter / total_prompts if total_prompts > 0 else 0
     ASR_among_pass = num_unsafe / num_pass_filter if num_pass_filter else 0
 
-    # Iteration ASR
-    # (Simplified logic: assume uniform distribution if iteration data missing)
-    iteration_ASR = 0 
-    if num_iterations and num_iterations > 0:
-        # Heuristic: did we find at least one success per 10 attempts?
-        est_success_iters = min(num_iterations, num_unsafe) 
-        iteration_ASR = est_success_iters / num_iterations
+    # Iteration ASR Calculation
+    # Find iterations with at least one success
+    successful_iters = set()
+    valid_iters = set()
+    
+    # Try to get max iteration count from different sources
+    if num_iterations:
+        total_iters = num_iterations
+    else:
+        # Infer from log data if possible, else default to 1
+        max_iter_in_log = max([i for i in flat_iterations if isinstance(i, int) and i >= 0], default=-1)
+        total_iters = max(1, max_iter_in_log + 1)
+
+    for r, it in zip(flat_reasons, flat_iterations):
+        if isinstance(it, int) and it >= 0:
+            valid_iters.add(it)
+            if r in ga_success:
+                successful_iters.add(it)
+    
+    iteration_ASR = len(successful_iters) / total_iters if total_iters > 0 else 0
 
     return {
         'filter_pass_rate': filter_pass_rate,
@@ -402,53 +415,105 @@ def calculate_comprehensive_metrics(log_data, num_iterations=None, regular_log_p
         'iteration_ASR': iteration_ASR,
         'total_prompts': total_prompts,
         'num_unsafe': num_unsafe,
+        'successful_iterations': len(successful_iters),
+        'total_iterations': total_iters
     }
 
+def print_analysis(analysis_results, category_analysis, persona_analysis=None, mem_stats=None, ga_stats=None, metrics=None):
+    """Print formatted analysis results."""
+    print("=" * 60)
+    print("COMPREHENSIVE LOG ANALYSIS")
+    print("=" * 60)
+    
+    print(f"\nOVERALL STATISTICS:")
+    print(f"Total Prompts Generated: {analysis_results['total_prompts']}")
+    print(f"Successful Attacks (Cumulative): {analysis_results['accepted_count']}")
+    if metrics:
+        print(f"ASR (Attack Success Rate): {metrics['ASR']:.2%}")
+        print(f"Iteration ASR: {metrics['iteration_ASR']:.2%} ({metrics['successful_iterations']}/{metrics['total_iterations']} iters)")
+    
+    print(f"\nGA OPERATIONS:")
+    print(f"  - Added New Niche: {analysis_results.get('added_new_niche', 0)}")
+    print(f"  - Replaced (Novelty): {analysis_results.get('replaced_novelty', 0)}")
+    print(f"  - Replaced (Fitness): {analysis_results.get('replaced_fitness', 0)}")
+    
+    print(f"\nREJECTIONS:")
+    print(f"  - Similarity Too High: {analysis_results['similarity_rejected']}")
+    print(f"  - Fitness Too Low: {analysis_results['fitness_rejected']}")
+    print(f"  - Not Elite (GA Density): {analysis_results.get('ga_rejected', 0)}")
+    
+    print(f"\nSCORE STATISTICS:")
+    s = analysis_results['score_stats']
+    print(f"  Mean: {s['mean']:.3f}, Max: {s['max']:.3f}")
+
+    if ga_stats:
+        print(f"\nGROWING ARCHIVE STATE:")
+        print(f"  Active Centroids: {ga_stats['n_centroids']}")
+        print(f"  Threshold (dmin): {ga_stats['dmin']:.4f}")
+        print(f"  Survivor Diversity: {ga_stats['elite_diversity']:.3f}")
+
+    if mem_stats:
+        print(f"\nATTACK MEMORY STATISTICS:")
+        print(f"  Total Saved: {mem_stats['total_entries']}")
+        print(f"  Avg Score: {mem_stats['avg_score']:.2f}")
+        print("  Sample Entries:")
+        for i, e in enumerate(mem_stats['sample_entries']):
+             p = e.get('prompt', '')[:50].replace('\n', ' ')
+             print(f"    {i+1}. [{e.get('score'):.2f}] {p}...")
+
+    print(f"\nCATEGORY ANALYSIS:")
+    for category, data in category_analysis.items():
+        print(f"  {category:<20} | Total: {data['total']:<4} | Accepted: {data['accepted']:<4} ({data['success_rate']:.1%})")
 
 def main():
     parser = argparse.ArgumentParser(description="Analyze comprehensive RainbowPlus logs")
     parser.add_argument("directory", help="Directory containing log files")
-    parser.add_argument("--output", help="Output file for analysis results")
+    parser.add_argument("--output", help="Output file path")
     parser.add_argument("--max-iterations", type=int)
     
     args = parser.parse_args()
     
     try:
         # 1. Find files
-        comp_log, reg_log, mem_log, max_iters = find_log_files(args.directory)
-        print(f"Comprehensive Log: {comp_log}")
-        print(f"Regular Log: {reg_log}")
-        print(f"Attack Memory Log: {mem_log}")
+        # Note the variable name consistency here!
+        comprehensive_log, regular_log, attack_memory_log, max_iters_from_logs = find_log_files(args.directory)
         
-        if not comp_log:
+        print(f"Comprehensive Log: {comprehensive_log}")
+        print(f"Regular Log: {regular_log}")
+        print(f"Attack Memory Log: {attack_memory_log}")
+        
+        if not comprehensive_log:
             print("Error: No comprehensive log found.")
             return
-            
-        max_iterations = args.max_iterations or max_iters
 
         # 2. Load Data
-        log_data = load_comprehensive_log(comp_log)
-        memory_data = load_attack_memory_log(mem_log)
+        log_data = load_comprehensive_log(comprehensive_log)
+        memory_data = load_attack_memory_log(attack_memory_log)
         
-        # 3. Basic Metrics
-        lexical_diversity = calculate_lexical_diversity(log_data)
-        embedding_diversity = calculate_embedding_diversity(log_data)
-        self_bleu = calculate_self_bleu(log_data)
+        # Determine max_iterations
+        max_iterations = args.max_iterations or max_iters_from_logs
         
-        ga_metrics = calculate_ga_metrics(log_data)
+        # 3. Basic Diversity
+        lexical = calculate_lexical_diversity(log_data)
+        embedding = calculate_embedding_diversity(log_data)
+        bleu = calculate_self_bleu(log_data)
         
         print("\nDIVERSITY SCORES:")
-        print(f"  Lexical diversity: {lexical_diversity.get('diversity_score', 0):.3f}")
-        print(f"  Embedding diversity: {embedding_diversity:.3f}")
-        print(f"  Self-BLEU: {self_bleu:.3f}")
+        print(f"  Lexical diversity: {lexical['diversity_score']:.3f}")
+        print(f"  Embedding diversity: {embedding:.3f}")
+        print(f"  Self-BLEU: {bleu:.3f}")
         
-        if ga_metrics:
-            print("\nGA ELITE METRICS:")
-            print(f"  Elite Count: {ga_metrics['elite_count']}")
-            print(f"  Elite Lexical Div: {ga_metrics['elite_lexical_diversity']:.3f}")
+        # GA Specific Analysis
+        ga_stats = analyze_ga_state(log_data)
+        if ga_stats:
+            print(f"\nGA ELITE METRICS:")
+            print(f"  Elite Count: {ga_stats['n_elites']}")
+            print(f"  Elite Lexical Div: {ga_stats['elite_diversity']:.3f}")
 
         # 4. Analysis
+        # --- FIXED CALL HERE: using regular_log variable correctly ---
         metrics = calculate_comprehensive_metrics(log_data, max_iterations, regular_log)
+        
         analysis_results = analyze_rejection_patterns(log_data)
         category_analysis = analyze_by_category(log_data)
         persona_analysis = analyze_by_persona(log_data)
@@ -457,7 +522,7 @@ def main():
         mem_stats = analyze_attack_memory(memory_data)
 
         # Print results
-        print_analysis(analysis_results, category_analysis, persona_analysis, mem_stats)
+        print_analysis(analysis_results, category_analysis, persona_analysis, mem_stats, ga_stats, metrics)
         
         # Save results
         output_path = args.output or os.path.join(args.directory, "analysis_results.json")
@@ -465,11 +530,11 @@ def main():
             'log_directory': args.directory,
             'comprehensive_metrics': metrics,
             'diversity': {
-                'lexical': lexical_diversity,
-                'embedding': embedding_diversity,
-                'self_bleu': self_bleu,
+                'lexical': lexical,
+                'embedding': embedding,
+                'self_bleu': bleu,
             },
-            'ga_metrics': ga_metrics,
+            'ga_metrics': ga_stats,
             'attack_memory_stats': mem_stats,
             'overall_analysis': analysis_results,
             'category_analysis': category_analysis,
