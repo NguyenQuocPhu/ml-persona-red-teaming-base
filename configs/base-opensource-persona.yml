@@ -40,6 +40,7 @@ mutator_llm:
 fitness_llm:
   type_: vllm
   model_kwargs:
+    #Llama-Guard-3-8B
     model: "meta-llama/Llama-Guard-3-1B"
     trust_remote_code: true
     gpu_memory_utilization: 0.65  # Chiếm 40% GPU 0

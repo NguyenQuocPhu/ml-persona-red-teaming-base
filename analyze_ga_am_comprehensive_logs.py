@@ -37,7 +37,7 @@ def load_attack_memory_log(log_path):
     try:
         with open(log_path, 'r', encoding='utf-8') as f:
             return yaml.safe_load(f)
-    except Exception as e:
+    except Exception as e: 
         print(f"Warning: Failed to load attack memory log: {e}")
         return None
 
