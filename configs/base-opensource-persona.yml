@@ -63,7 +63,7 @@ threshold_top: 0.6
 number_example_prompts: 2
 num_samples: 100
 n_cells: 100
-max_iters: 20
+max_iters: 50
 sim_threshold: 0.6
 num_mutations: 10
 fitness_threshold: 0.6
