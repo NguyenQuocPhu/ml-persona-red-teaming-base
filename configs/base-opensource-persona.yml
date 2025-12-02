@@ -29,7 +29,7 @@ mutator_llm:
   # LƯU Ý: Tốt nhất nên dùng ${GEMINI_API_KEY} thay vì paste cứng key ở đây để tránh lỗi GitHub
   model_kwargs:
     model: gemini-2.5-flash-lite
-    api_key: AIzaSyDqMAdGfrJv7IQZjautAD40PjWJz298Irg
+    api_key: AIzaSyCEr8paUlVApm7eNDGcIgK9eueaaNxN0lU
     rpm: 9
   sampling_params:
     temperature: 1.0
@@ -63,7 +63,7 @@ threshold_top: 0.6
 number_example_prompts: 2
 num_samples: 100
 n_cells: 100
-max_iters: 200
+max_iters: 20
 sim_threshold: 0.6
 num_mutations: 10
 fitness_threshold: 0.6
