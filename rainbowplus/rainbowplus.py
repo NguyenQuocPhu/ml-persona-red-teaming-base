@@ -339,7 +339,7 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
         # --- Step 2: Descriptor & Mutation ---
         descriptor = {}
         selected_persona = None
-        number_of_persona = 1
+        number_of_persona = 2
         
         # Sample descriptors
         for key, values in descriptors.items():
