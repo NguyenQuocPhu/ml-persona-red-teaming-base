@@ -7,7 +7,7 @@
 from typing import Any, Dict, List
 from rainbowplus.llms.vllm import vLLM
 from rainbowplus.llms.openai import LLMviaOpenAI
-
+from rainbowplus.llms.gemini import GeminiLLM
 
 class LLMSwitcher:
     """Factory class for creating and managing different LLM implementations"""
@@ -38,6 +38,8 @@ class LLMSwitcher:
             return vLLM(self.model_kwargs)
         elif self._type == "openai":
             return LLMviaOpenAI(self.config)
+        elif self._type == 'gemini':
+            return GeminiLLM(self.config)
         else:
             raise ValueError(f"Unsupported LLM type: {self._type}")
 
