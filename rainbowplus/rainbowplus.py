@@ -15,7 +15,7 @@ import yaml
 import numpy as np
 
 
-from rainbowplus.scores import BleuScoreNLTK, OpenAIGuard
+from rainbowplus.scores import BleuScoreNLTK, OpenAIGuard, LlamaGuard
 from rainbowplus.utils import (
     load_txt,
     load_json,
@@ -545,7 +545,7 @@ if __name__ == "__main__":
 
     # Initialize language models and scoring functions
     llms = initialize_language_models(config)
-    fitness_fn = OpenAIGuard(config.fitness_llm)
+    fitness_fn = LlamaGuard(config.fitness_llm.model_kwargs)
     similarity_fn = BleuScoreNLTK()
 
     # Show configuration
