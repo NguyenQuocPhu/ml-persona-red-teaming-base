@@ -90,7 +90,7 @@ class AttackMemory:
             return random.sample(candidates, k)
 
         # 2. Khởi tạo
-        selected_indices = random.randint(0, len(candidates))
+        selected_indices = [random.randint(0, len(candidates) - 1)]
         candidate_indices = [i for i in range(len(candidates)) if i != selected_indices] # Các phần tử còn lại
 
         # 3. Vòng lặp Greedy (Tham lam)
