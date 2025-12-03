@@ -253,6 +253,8 @@ def parse_arguments():
     parser.add_argument("--threshold_bot_memory", type = float, default = 0.4, help = "Maximize fitness score to add prompt to memory")
     parser.add_argument("--threshold_top_memory", type = float, default = 0.6, help = "Minimize fitness score to add prompt to memory")
     parser.add_argument("--number_example_prompts", type = int, help = "Number of example prompts in few-shot")
+    parser.add_argument("--delta", type = float, help = "Threshold for new centroids")
+    parser.add_argument("--k_elites", type = int, help = "Number of elites in each cell")
     return parser.parse_args()
 
 def merge_config_with_args(config, args):
