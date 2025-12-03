@@ -179,9 +179,8 @@ def save_ga_iteration_log(
         "meta": {
             "max_iters": max_iters,
             "iteration": iteration,
-            "n_cells": current_capacity, # Đã sửa
+            "max_cells": current_capacity, # Đã sửa
             "n_centroids": ga_instance.n_centroids,
-            "dmin": float(ga_instance.dmin) if ga_instance.dmin != np.inf else "inf"
         },
         "centroids": clean_centroids,
         "elites": clean_elites
@@ -237,7 +236,6 @@ def save_ga_comprehensive_log(
     
     ga_state = {
         "n_centroids": ga_instance.n_centroids,
-        "dmin": float(ga_instance.dmin) if ga_instance.dmin != np.inf else "inf",
         "centroids": _convert_numpy_types(active_centroids),
         "elites": {}
     }
