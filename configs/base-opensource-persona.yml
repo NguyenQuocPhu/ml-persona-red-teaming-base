@@ -67,7 +67,7 @@ number_example_prompts: 2
 delta: 0.35
 k_elites: 5
 n_cells: 50
-max_iters: 20
+max_iters: 1
 sim_threshold: 0.6
 num_mutations: 10
 fitness_threshold: 0.6
