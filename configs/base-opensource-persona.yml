@@ -57,13 +57,17 @@ fitness_llm:
 
 # --- Tham số chạy (Runtime Params) ---
 sample_prompts: "./data/harmbench.json"
+num_samples: 100
+
 seed_memory: configs/seed_memory.yml
 threshold_bot: 0.4
 threshold_top: 0.6
 number_example_prompts: 2
-num_samples: 100
-n_cells: 100
-max_iters: 50
+
+delta: 0.35
+k_elites: 5
+n_cells: 50
+max_iters: 20
 sim_threshold: 0.6
 num_mutations: 10
 fitness_threshold: 0.6

@@ -13,7 +13,7 @@ import uuid  # Required for ID generation
 from pathlib import Path
 import yaml
 import numpy as np
-from typing import Dict
+from typing import Dict, List
 from copy import deepcopy
 
 # --- Imports ---
@@ -47,16 +47,21 @@ logger = logging.getLogger(__name__)
 
 # --- UTILS FOR GROWING ARCHIVE ---
 def cosine_distance_batch(X, Y):
+    """Tính khoảng cách Cosine: 1 - Similarity."""
     X_norm = np.linalg.norm(X, axis=1, keepdims=True)
     Y_norm = np.linalg.norm(Y, axis=1, keepdims=True)
+    # Tránh chia cho 0
     X_norm[X_norm == 0] = 1e-12
     Y_norm[Y_norm == 0] = 1e-12
+    
     dot_product = X @ Y.T
     similarity = dot_product / (X_norm @ Y_norm.T)
+    # Clip để tránh lỗi sai số dấu phẩy động
     similarity = np.clip(similarity, -1.0, 1.0)
     return 1.0 - similarity
 
 def _compute_distance_to_centroids(b_vector, centroids):
+    """Tìm centroid gần nhất và khoảng cách tới nó."""
     if len(centroids) == 0:
         return np.inf, -1
     if b_vector.ndim == 1:
@@ -65,110 +70,168 @@ def _compute_distance_to_centroids(b_vector, centroids):
     c_id = np.argmin(distances)
     return distances[0, c_id], c_id
 
-# --- GROWING ARCHIVE CLASS ---
+# --- MAIN CLASS: Dynamic Expansion Archive ---
 class GrowingArchive:
-    def __init__(self, n_cells: int, n_behavior_dim: int, fitness_threshold: float):
-        self.n_cells = n_cells
+    def __init__(self, 
+                 max_cells: int, 
+                 n_behavior_dim: int, 
+                 fitness_threshold: float, 
+                 delta: float, 
+                 k_elites: int = 10):
+        """
+        Args:
+            max_cells: Sức chứa tối đa (Soft Cap).
+            n_behavior_dim: Số chiều embedding (384).
+            fitness_threshold: Lọc rác.
+            delta: Ngưỡng khoảng cách để xác định "Vùng đất mới".
+            k_elites: Số lượng elite trong mỗi vùng.
+        """
+        self.max_cells = max_cells
         self.fitness_threshold = fitness_threshold
+        self.delta = delta
+        self.k_elites = k_elites
         
-        # Use np.zeros for safer initialization
-        self.centroids = np.zeros((n_cells, n_behavior_dim), dtype=np.float32)
-        self.elites : Dict[int, Dict] = {}
-        self.elites_backup : Dict[int, Dict] = {} 
+        # Centroids matrix (Cấp phát trước bộ nhớ tối đa)
+        self.centroids = np.zeros((max_cells, n_behavior_dim), dtype=np.float32)
+        
+        # Số lượng centroid thực tế đang hoạt động
         self.n_centroids = 0
-        self.dmin = np.inf
         
-        # Cache variables
-        self.c_id_neighbors = np.zeros((n_cells, n_cells), dtype=int)
-        self.d_neighbors = np.zeros((n_cells, n_cells), dtype=np.float32)
+        # Kho lưu trữ: Map cell_id -> List of Dicts
+        self.elites : Dict[int, List[Dict]] = {}
+        
+        # Cache cho Pruning (dùng khi đầy kho)
+        self.c_id_neighbors = np.zeros((max_cells, max_cells), dtype=int)
+        self.d_neighbors = np.zeros((max_cells, max_cells), dtype=np.float32)
 
-    def _compute_dmin(self):
+    def _compute_pruning_metrics(self):
+        """
+        Chỉ tính toán khi cần Pruning (tìm hàng xóm gần nhất để xóa).
+        Tính khoảng cách giữa các centroid đang hoạt động.
+        """
         if self.n_centroids < 2:
-            self.dmin = np.inf
             return
+
         active_centroids = self.centroids[:self.n_centroids]
         distances = cosine_distance_batch(active_centroids, active_centroids)
         np.fill_diagonal(distances, np.inf)
-        self.dmin = np.min(distances)
         
-        # Update neighbors cache
+        # Lưu cache để dùng cho việc chọn nạn nhân khi đầy bộ nhớ
         self.c_id_neighbors[:self.n_centroids, :self.n_centroids] = np.argsort(distances, axis=1)
+        
         rows = np.arange(self.n_centroids)[:, None]
         sorted_indices = self.c_id_neighbors[:self.n_centroids, :self.n_centroids]
         self.d_neighbors[:self.n_centroids, :self.n_centroids] = distances[rows, sorted_indices]
 
-    def _set_new_elite(self, cell_id: int, evaluation: Dict, is_backup: bool = True):
-        self.elites[cell_id] = deepcopy(evaluation)
-        if is_backup:
-            self.elites_backup = deepcopy(evaluation)
+    def _add_to_cell_top_k(self, cell_id: int, evaluation: Dict):
+        """Logic Top-K Multi-Elite."""
+        if cell_id not in self.elites:
+            self.elites[cell_id] = []
             
-    def __apply_repair(self, pruned_cell_id: int):
-        active_centroids = self.centroids[:self.n_centroids]
-        keys_to_check = list(self.elites.keys())
-        if pruned_cell_id in keys_to_check:
-            keys_to_check.remove(pruned_cell_id)
-        if not keys_to_check:
-            return
+        self.elites[cell_id].append(deepcopy(evaluation))
+        # Sort giảm dần theo fitness
+        self.elites[cell_id].sort(key=lambda x: x.get("fitness", 0.0), reverse=True)
+        # Giữ Top-K
+        if len(self.elites[cell_id]) > self.k_elites:
+            self.elites[cell_id] = self.elites[cell_id][:self.k_elites]
 
-        behaviors_to_check = np.array([self.elites[k]["behavior"] for k in keys_to_check])
-        distances = cosine_distance_batch(behaviors_to_check, active_centroids)
-        new_cell_ids = np.argmin(distances, axis=1)
-        
-        for i, old_cell_id in enumerate(keys_to_check):
-            new_cell_id = new_cell_ids[i]
-            if new_cell_id != old_cell_id and old_cell_id in self.elites_backup:
-                self.elites[old_cell_id] = deepcopy(self.elites_backup[old_cell_id])
+    def _migrate_and_compete(self, orphaned_elites: List[Dict]):
+        """Cơ chế Tái định cư: Đưa dân cũ đi tìm nhà mới."""
+        active_centroids = self.centroids[:self.n_centroids]
+        for elite in orphaned_elites:
+            b_vec = elite["behavior"].reshape(1, -1)
+            dist, new_cell_id = _compute_distance_to_centroids(b_vec, active_centroids)
+            self._add_to_cell_top_k(new_cell_id, elite)
 
     def add_evaluation(self, evaluation: Dict) -> str:
+        """
+        Logic chính: Expansion -> Replacement -> Competition.
+        """
         if evaluation["fitness"] < self.fitness_threshold:
-            return "fitness_too_low"
+            return "rejected_fitness_low"
 
         b_vector = evaluation["behavior"].reshape(1, -1)
         active_centroids = self.centroids[:self.n_centroids]
 
-        # 1. Add new if space available
-        if self.n_centroids < self.n_cells:
-            new_cell_id = self.n_centroids
-            self.centroids[new_cell_id] = b_vector
-            self._set_new_elite(new_cell_id, evaluation, is_backup=True)
+        # --- TRƯỜNG HỢP 0: KHO RỖNG ---
+        if self.n_centroids == 0:
+            self.centroids[0] = b_vector
+            self._add_to_cell_top_k(0, evaluation)
             self.n_centroids += 1
-            if self.n_centroids == self.n_cells:
-                self._compute_dmin()
-            return "added_new_niche"
-        
-        # 2. Check distance
-        d_to_nearest, cell_id = _compute_distance_to_centroids(b_vector, active_centroids)
+            return "added_init"
 
-        # 3. Pruning (Novelty Search)
-        if d_to_nearest > self.dmin:
-            centroid_A = np.argmin(self.d_neighbors[:, 0])
-            centroid_B = self.c_id_neighbors[centroid_A, 0]
-            dist_A_to_neighbor_2 = self.d_neighbors[centroid_A, 1]
-            dist_B_to_neighbor_2 = self.d_neighbors[centroid_B, 1]
+        # Tính khoảng cách tới centroid gần nhất
+        d_to_nearest, closest_cell_id = _compute_distance_to_centroids(b_vector, active_centroids)
 
-            if dist_A_to_neighbor_2 < dist_B_to_neighbor_2:
-                pruned_cell_id = centroid_A
+        # --- NHÁNH 1: EXPANSION CHECK (Kiểm tra Mở rộng) ---
+        # Điều kiện: Đủ lạ (xa hơn delta)
+        is_novel = d_to_nearest > self.delta
+
+        if is_novel:
+            # 1.1 Nếu còn chỗ trống (Chưa chạm Soft Cap) -> TẠO MỚI NGAY
+            if self.n_centroids < self.max_cells:
+                new_cell_id = self.n_centroids
+                self.centroids[new_cell_id] = b_vector
+                self._add_to_cell_top_k(new_cell_id, evaluation)
+                self.n_centroids += 1
+                
+                # Cập nhật metric nếu sắp đầy (để chuẩn bị cho pruning)
+                if self.n_centroids >= self.max_cells * 0.9: 
+                    self._compute_pruning_metrics()
+                    
+                return "expanded_new_niche"
+            
+            # 1.2 Nếu đã đầy kho (Chạm Soft Cap) -> PHẢI THAY THẾ (Replacement)
             else:
-                pruned_cell_id = centroid_B
+                # Cần cập nhật metric để tìm kẻ yếu nhất
+                self._compute_pruning_metrics()
+                
+                # Tìm khu vực chật chội nhất (2 centroid gần nhau nhất)
+                c_A = np.argmin(self.d_neighbors[:, 0])
+                c_B = self.c_id_neighbors[c_A, 0]
+                
+                # So sánh ai chật hơn (dựa vào hàng xóm thứ 2)
+                if self.d_neighbors[c_A, 1] < self.d_neighbors[c_B, 1]:
+                    pruned_id = c_A
+                else:
+                    pruned_id = c_B
+                
+                # Cứu hộ dân cũ
+                orphans = self.elites.get(pruned_id, [])
+                
+                # Ghi đè Centroid mới vào vị trí cũ
+                self.centroids[pruned_id] = b_vector
+                self.elites[pruned_id] = [] # Reset nhà
+                self._add_to_cell_top_k(pruned_id, evaluation)
+                
+                # Tái định cư dân cũ
+                if orphans:
+                    self._migrate_and_compete(orphans)
+                
+                return "replaced_novelty"
+
+        # --- NHÁNH 2: COMPETITION CHECK (Cạnh tranh nội bộ) ---
+        # Nếu không đủ lạ (d_to_nearest <= delta), nó thuộc về ô cũ
+        else:
+            # Thêm vào ô gần nhất và cạnh tranh Top-K
+            current_list = self.elites[closest_cell_id]
             
-            self.centroids[pruned_cell_id] = b_vector
-            self._set_new_elite(pruned_cell_id, evaluation, is_backup=True)
-            self._compute_dmin()
-            self.__apply_repair(pruned_cell_id)
-            return "replaced_novelty"
-        
-        # 4. Local Optimization (Fitness)
-        if evaluation["fitness"] > self.elites[cell_id]["fitness"]:
-            self._set_new_elite(cell_id, evaluation, is_backup=False)
-            return "replaced_fitness"
+            # Chỉ return success nếu nó thực sự lọt vào Top-K
+            # (Logic này đã nằm trong hàm _add nhưng ta check để log cho đúng)
+            if len(current_list) < self.k_elites or evaluation["fitness"] > current_list[-1]["fitness"]:
+                self._add_to_cell_top_k(closest_cell_id, evaluation)
+                return "competed_success"
             
-        return "rejected"
+            return "rejected_duplicate"
 
     def sample_parent(self):
+        """Chọn ngẫu nhiên 1 ngách, sau đó chọn 1 elite."""
         if not self.elites:
             return None
-        random_key = random.choice(list(self.elites.keys()))
-        return self.elites[random_key]
+        random_cell_id = random.choice(list(self.elites.keys()))
+        elite_list = self.elites[random_cell_id]
+        if not elite_list: return None
+        return random.choice(elite_list)
 
 # --- MAIN LOGIC ---
 
@@ -207,6 +270,8 @@ def merge_config_with_args(config, args):
     merged_args.threshold_top_memory = config.threshold_top_memory
     merged_args.seed_memory = config.seed_memory or "configs/seed_memory.yml"
     merged_args.number_example_prompts = config.number_example_prompts
+    merged_args.delta = config.delta
+    merged_args.k_elites = config.k_elites
     merged_args.dataset = config.sample_prompts or "./data/do-not-answer.json"
     merged_args.config_file = args.config_file
     
@@ -223,6 +288,8 @@ def merge_config_with_args(config, args):
     if args.threshold_top_memory is not None: merged_args.threshold_top_memory = args.threshold_top_memory
     if args.seed_memory is not None: merged_args.seed_memory = args.seed_memory
     if args.number_example_prompts is not None: merged_args.number_example_prompts = args.number_example_prompts
+    if args.delta is not None: merged_args.delta = args.delta
+    if args.k_elites is not None: merged_args.k_elites = args.k_elites
     if args.dataset is not None: merged_args.dataset = args.dataset
     return merged_args
 
@@ -263,8 +330,19 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
 
     # --- 3. Initialize Growing Archive ---
     behavior_dim = 384 # Matching all-MiniLM-L6-v2 dimensions
-    GA = GrowingArchive(args.n_cells, behavior_dim, args.fitness_threshold)
-    attack_memory = AttackMemory(args.threshold_bot_memory, args.threshold_top_memory)
+    
+
+    GA = GrowingArchive(
+            args.n_cells, 
+            behavior_dim, 
+            args.fitness_threshold,
+            args.delta,
+            args.k_elites)
+    
+
+    attack_memory = AttackMemory(
+            args.threshold_bot_memory, 
+            args.threshold_top_memory)
     # --- 4. Initialize Persona Mutator ---
     persona_mutator = None
     simple_persona_mode = getattr(config, 'simple_persona_mode', False) or getattr(config, 'simple_mode', False) or config.__dict__.get('simple_persona_mode', False)
@@ -435,6 +513,7 @@ def run_rainbowplus(args, config, seed_prompts=[], llms=None, fitness_fn=None, s
                     # Update GA
                     ga_result = GA.add_evaluation(eval_item)
                     candidate_memory = {
+                        "behavior": behavior,
                         "prompt": m_prompt,
                         "score": fit,
                         "persoa": selected_persona

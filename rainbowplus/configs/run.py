@@ -40,6 +40,9 @@ class Configuration:
     threshold_bot_memory: float = 0.4
     threshold_top_memory: float = 0.6
     number_example_prompts: int = 2
+    delta: float = 0.25
+    k_elites: int = 10
+
 
     def __post_init__(self):
         self.mutator_llm = self.mutator_llm or self.target_llm
