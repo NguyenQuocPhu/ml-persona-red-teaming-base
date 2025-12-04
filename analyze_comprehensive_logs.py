@@ -243,9 +243,10 @@ def main():
             stats_high = get_top_k_data(persona_evaluations, args.top_k, 'highest')
             scores = [e['fitness'] for e in stats_high]
             print(f"Persona Highest Top-{args.top_k} Fitness: {float(np.mean(scores)):.4f} (±{float(np.std(scores)):.4f}")
-            diversity = calculate_self_bleu(persona_prompts)
+            flat_prompts = [e['prompt'] for e in stats_high]
+            diversity = calculate_self_bleu(flat_prompts)
             print(f"Persona Self-BLEU: {diversity:.4f}")
-            distinct_n = calculate_distinct_n(persona_prompts)
+            distinct_n = calculate_distinct_n(flat_prompts)
             print(f"Persona Distinct-2: {distinct_n:.4f}")
             '''
             # Random Stats
