@@ -182,7 +182,7 @@ def visualize_blue_ocean(embeddings_ga, embeddings_pt, threshold=0.2, output_dir
     from IPython.display import Image, display
 
 # Hiển thị ảnh bản đồ Blue Ocean
-        display(Image(filename='blue_ocean_map.png'))
+    display(Image(filename='blue_ocean_map.png'))
 
 # Hiển thị ảnh so sánh Grid (nếu có)
 # display(Image(filename='dispersion_comparison_grid_top100.png'))
