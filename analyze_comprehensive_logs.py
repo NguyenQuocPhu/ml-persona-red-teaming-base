@@ -160,10 +160,12 @@ def main():
             elites = ga_state.get('elites', {})
             
             ga_evaluations = []
-            for key, elite in elites.items():
-                if elite:
-                    ga_evaluations.append(elite)
-                    if 'prompt' in elite:
+            for key, list_of_elite in elites.items():
+                if list_of_elite:
+                    max_evaluation = max(list_of_elite, key=lambda x: x.get('fitness', 0))
+                    ga_evaluations.append(max_evaluation)
+                    # Take the highest fitness in each cells
+                    for elite in list_of_elite:
                         ga_prompts.append(elite['prompt'])
             
             print(f"[GrowingArchive] Loaded {len(ga_prompts)} prompts.")

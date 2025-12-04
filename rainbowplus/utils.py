@@ -261,7 +261,7 @@ def save_ga_comprehensive_log(
         **history_data, 
         "ga_state": ga_state
     }
-
+    
     # Calculate diversity metrics for GA elites
     try:
         diversity = calculate_lexical_diversity_from_list(all_ga_prompts) 
