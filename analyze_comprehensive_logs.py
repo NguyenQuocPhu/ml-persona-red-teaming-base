@@ -206,7 +206,7 @@ def main():
             
             stats = get_top_k_data(ga_evaluations, args.top_k, 'highest')
             scores = [e['fitness'] for e in stats]
-            print(f"GA Top-{args.top_k} Fitness: {float(np.mean(scores)):.4f} (±{float(np.std(scores):.4f})")
+            print(f"GA Top-{args.top_k} Fitness: {float(np.mean(scores)):.4f} (±{float(np.std(scores)):.4f}")
             flat_prompts = [e['prompt'] for e in stats]
             diversity = calculate_self_bleu(flat_prompts)
             print(f"GA Self-BLEU: {diversity:.4f}")
