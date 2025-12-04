@@ -106,82 +106,58 @@ def compare_methods_diversity(persona_prompts, archive_prompts, sample_size=100,
     else:
         print("-> Both methods have equal diversity.")
 
-def calibrate_threshold(pt_embeddings, percentile=10):
+def plot_fitness_distribution(scores_ga, scores_pt, output_filename="fitness_dist.png"):
     """
-    Tìm threshold dựa trên độ phân tán nội bộ của PersonaTeaming.
-    Chúng ta muốn tìm ngưỡng khoảng cách của những cặp 'rất gần nhau' trong PT.
+    Vẽ biểu đồ phân bố điểm số (Fitness) của 2 phương pháp.
+    
+    Args:
+        scores_ga (list): Danh sách điểm số của Growing Archive (VD: [0.9, 0.8, 1.0...])
+        scores_pt (list): Danh sách điểm số của Persona Teaming
     """
-    if len(pt_embeddings) < 2: return 0.2 # Fallback
-    
-    # Tính ma trận khoảng cách nội bộ
-    dists = cosine_distances(pt_embeddings)
-    
-    # Lấy tam giác trên (bỏ đường chéo 0)
-    n = len(pt_embeddings)
-    triu_indices = np.triu_indices(n, k=1)
-    internal_dists = dists[triu_indices]
-    
-    # Chọn ngưỡng:
-    # Cách 1 (Khắt khe): Trung bình khoảng cách nội bộ.
-    # mean_dist = np.mean(internal_dists) 
-    
-    # Cách 2 (Hợp lý hơn): Phân vị thứ 10 hoặc 20 (10th/20th percentile).
-    # Nghĩa là: "Khoảng cách này được coi là gần trong nội bộ PT".
-    # Tuy nhiên, để làm ngưỡng cho Blue Ocean (cần KHÁC BIỆT), ta nên lấy trung bình.
-    
-    # Theo kinh nghiệm, lấy mean là an toàn nhất.
-    suggested_threshold = float(np.mean(internal_dists))
-    
-    print(f"[Calibration] Internal Diversity of PT: {suggested_threshold:.4f}")
-    return suggested_threshold
+    print("\n[Viz] Đang vẽ biểu đồ phân bố Fitness...")
 
-# --- 3. Vẽ Blue Ocean Map (Enhanced t-SNE) ---
-def visualize_blue_ocean(embeddings_ga, embeddings_pt, threshold=0.2, output_dir="."):
-    """
-    Vẽ t-SNE nhưng tô màu nổi bật những điểm 'Blue Ocean' của GA.
-    """
-    print("\n[Visualization] Generating Blue Ocean Map...")
+    # BƯỚC 1: Chuẩn bị dữ liệu cho "ngăn nắp"
+    # Chúng ta tạo một cái bảng (DataFrame) để máy dễ vẽ
+    # Cột 1: Phương pháp (Tên lớp học)
+    # Cột 2: Điểm số (Fitness)
+    data = []
     
-    # 1. Tính toán điểm Blue Ocean
-    from sklearn.metrics.pairwise import cosine_distances
-    dists = cosine_distances(embeddings_ga, embeddings_pt)
-    min_dists = np.min(dists, axis=1)
+    for s in scores_ga:
+        data.append({"Method": "GrowingArchive", "Fitness": s})
     
-    # Mask: True nếu là điểm độc lạ, False nếu trùng lặp
-    is_blue_ocean = min_dists > threshold
-    
-    # 2. Chạy t-SNE chung
-    all_emb = np.vstack([embeddings_pt, embeddings_ga])
-    tsne = TSNE(n_components=2, random_state=42, perplexity=30, init='pca', learning_rate='auto')
-    all_2d = tsne.fit_transform(all_emb)
-    
-    pt_2d = all_2d[:len(embeddings_pt)]
-    ga_2d = all_2d[len(embeddings_pt):]
-    
-    # 3. Vẽ
-    plt.figure(figsize=(10, 8))
-    
-    # Lớp 1: PersonaTeaming (Nền xám hoặc đỏ nhạt) - Để làm nền
-    plt.scatter(pt_2d[:, 0], pt_2d[:, 1], c='lightgray', label='PersonaTeaming (Baseline)', s=50, alpha=0.5)
-    
-    # Lớp 2: GrowingArchive (Trùng lặp) - Màu xanh bình thường
-    ga_normal = ga_2d[~is_blue_ocean]
-    plt.scatter(ga_normal[:, 0], ga_normal[:, 1], c='#1F9D89', label='GA (Overlapping)', s=50, alpha=0.6)
-    
-    # Lớp 3: GrowingArchive (Blue Ocean) - Màu vàng hoặc cam nổi bật
-    ga_novel = ga_2d[is_blue_ocean]
-    plt.scatter(ga_novel[:, 0], ga_novel[:, 1], c='#FFD700', label='GA (Blue Ocean / Novel)', s=100, edgecolors='black', marker='*')
-    
-    plt.title(f'Blue Ocean Discovery Map (Threshold={threshold})', fontsize=15)
-    plt.legend()
-    plt.grid(True, linestyle=':', alpha=0.3)
-    
-    # Thay vì plt.show(), hãy dùng:
-    plt.savefig("blue_ocean_map.png", dpi=300, bbox_inches='tight')
-    print("Image saved to blue_ocean_map.png")
+    for s in scores_pt:
+        data.append({"Method": "PersonaTeaming", "Fitness": s})
+        
+    df = pd.DataFrame(data)
 
-# Hiển thị ảnh so sánh Grid (nếu có)
-# display(Image(filename='dispersion_comparison_grid_top100.png'))
+    # BƯỚC 2: Vẽ biểu đồ
+    plt.figure(figsize=(10, 6)) # Tạo khung tranh kích thước 10x6
+    
+    # Dùng hàm histplot (Histogram Plot)
+    # x="Fitness": Trục ngang là điểm số
+    # hue="Method": Tô màu khác nhau cho từng phương pháp
+    # kde=True: Vẽ thêm đường cong mềm mại để dễ nhìn xu hướng
+    # bins=20: Chia điểm số thành 20 cái giỏ nhỏ
+    sns.histplot(
+        data=df, 
+        x="Fitness", 
+        hue="Method", 
+        kde=True, 
+        bins=20,
+        palette={'PersonaTeaming': '#FF4B4B', 'GrowingArchive': '#1F9D89'}, # Màu Đỏ vs Xanh
+        alpha=0.6 # Độ trong suốt (để nếu chồng lên nhau vẫn nhìn thấy)
+    )
+    
+    # Trang trí cho đẹp
+    plt.title("So sánh Phân Bố Điểm Số (Fitness Distribution)", fontsize=15)
+    plt.xlabel("Điểm Fitness (Càng cao càng tốt)", fontsize=12)
+    plt.ylabel("Số lượng Prompt (Tần suất)", fontsize=12)
+    plt.grid(axis='y', linestyle='--', alpha=0.3) # Kẻ dòng mờ mờ cho dễ dóng
+    
+    # BƯỚC 3: Lưu thành file ảnh (để xem trên Kaggle)
+    plt.savefig(output_filename, dpi=300, bbox_inches='tight')
+    print(f"✅ Đã lưu biểu đồ vào file: {output_filename}")
+    plt.close() # Đóng lại cho đỡ tốn RAM
 
 
 def find_log_files(directory):
@@ -234,6 +210,7 @@ def main():
         return
     
     ga_prompts = []
+    ga_scores = []
     if comprehensive_ga_log:
         try:
             # SỬA: Load trực tiếp file, không load chồng chéo
@@ -250,6 +227,7 @@ def main():
                     # Take the highest fitness in each cells
                     for elite in list_of_elite:
                         ga_prompts.append(elite['prompt'])
+                        ga_scores.append(elite['fitness'])
             
             print(f"[GrowingArchive] Loaded {len(ga_prompts)} prompts.")
             
@@ -261,6 +239,7 @@ def main():
 
     # --- PROCESS STANDARD LOGS ---
     persona_prompts = []
+    persona_scores = []
     if comprehensive_log:
         try:
             std_data = load_comprehensive_log(comprehensive_log)
@@ -277,6 +256,7 @@ def main():
                         "prompt": prompt,
                         "fitness": score,
                     })
+                    persona_scores.append(score)
             
             print(f"\n[PersonaTeaming] Loaded {len(persona_prompts)} prompts.")
             
@@ -300,12 +280,7 @@ def main():
     model = SentenceTransformer('all-MiniLM-L6-v2')
     ga_emb = model.encode(ga_prompts)
     pt_emb = model.encode(persona_prompts)
-
-    # 4. Calibrate Threshold
-    print("[AI] Calibrating comparison threshold...")
-    threshold = calibrate_threshold(pt_emb)
-    print(f" -> Auto-calibrated Threshold: {threshold:.4f} (based on PT internal diversity)")
-    visualize_blue_ocean(ga_emb, pt_emb, 0.2)
+    plot_fitness_distribution(ga_scores, persona_scores)
 
 if __name__ == "__main__":
     main()
