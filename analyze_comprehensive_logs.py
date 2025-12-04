@@ -309,7 +309,7 @@ def main():
     print("[AI] Calibrating comparison threshold...")
     threshold = calibrate_threshold(pt_emb)
     print(f" -> Auto-calibrated Threshold: {threshold:.4f} (based on PT internal diversity)")
-    visualize_blue_ocean(ga_emb, pt_emb, threshold)
+    visualize_blue_ocean(ga_emb, pt_emb, 0.2)
 
 if __name__ == "__main__":
     main()
