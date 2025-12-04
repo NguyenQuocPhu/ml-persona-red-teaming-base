@@ -78,6 +78,59 @@ def get_top_k_data(evaluations, k=100, strategy='highest'):
     return selected
 
 
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.spatial import ConvexHull
+from sklearn.decomposition import PCA
+
+def analyze_convex_hull_simple(embeddings, method_name="Method"):
+    """
+    1. Tính thể tích ước lượng (dựa trên PCA 3D).
+    2. Vẽ hình bao lồi 2D (dựa trên PCA 2D).
+    """
+    # --- 1. TÍNH TOÁN (Metric) ---
+    # Giảm xuống 3 chiều để tính thể tích "đại diện"
+    if len(embeddings) >= 4:
+        pca_3d = PCA(n_components=3)
+        emb_3d = pca_3d.fit_transform(embeddings)
+        volume = ConvexHull(emb_3d).volume
+    else:
+        volume = 0.0
+    
+    print(f"[{method_name}] Pseudo-Volume (3D PCA): {volume:.4f}")
+
+    # --- 2. VẼ HÌNH 2D (Visualization) ---
+    # Giảm xuống 2 chiều để vẽ lên giấy
+    if len(embeddings) >= 3:
+        pca_2d = PCA(n_components=2)
+        points_2d = pca_2d.fit_transform(embeddings)
+        hull = ConvexHull(points_2d)
+
+        # Vẽ các điểm
+        plt.figure(figsize=(8, 6))
+        plt.plot(points_2d[:,0], points_2d[:,1], 'o', color='blue', alpha=0.3, label='Prompts')
+
+        # Vẽ đường bao lồi (Sợi dây chun)
+        for simplex in hull.simplices:
+            plt.plot(points_2d[simplex, 0], points_2d[simplex, 1], 'r-', lw=2) # Đường màu đỏ
+        
+        # Tô màu vùng bên trong (Option)
+        plt.fill(points_2d[hull.vertices,0], points_2d[hull.vertices,1], 'r', alpha=0.1)
+
+        plt.title(f'{method_name} - 2D Convex Hull Coverage')
+        plt.xlabel('PCA Dim 1')
+        plt.ylabel('PCA Dim 2')
+        plt.grid(True, linestyle=':', alpha=0.5)
+        
+        # Lưu file
+        filename = f"hull_2d_{method_name}.png"
+        plt.savefig(filename, dpi=300, bbox_inches='tight')
+        print(f"✅ Đã lưu ảnh 2D đơn giản: {filename}")
+        plt.close()
+    else:
+        print("Không đủ điểm dữ liệu để vẽ Hull.")
+
+    return volume
 
 def plot_fitness_distribution(scores_ga, scores_pt, output_filename="fitness_dist.png"):
     """
@@ -182,6 +235,9 @@ def main():
         print(f"Error finding logs: {e}")
         return
     
+    # 3. Compute Embeddings
+    print("\n[AI] Computing Embeddings (all-MiniLM-L6-v2)...")
+    model = SentenceTransformer('all-MiniLM-L6-v2')
     ga_prompts = []
     ga_scores = []
     if comprehensive_ga_log:
@@ -212,6 +268,8 @@ def main():
             print(f"GA Self-BLEU: {diversity:.4f}")
             distinct_n = calculate_distinct_n(flat_prompts)
             print(f"GA Distinct-2: {distinct_n:.4f}")
+            ga_emb = model.encode(flat_prompts)
+            analyze_convex_hull_simple(ga_emb, "GrowingArchive")
             
         except Exception as e:
             print(f"Error processing GA log: {e}")
@@ -248,6 +306,8 @@ def main():
             print(f"Persona Self-BLEU: {diversity:.4f}")
             distinct_n = calculate_distinct_n(flat_prompts)
             print(f"Persona Distinct-2: {distinct_n:.4f}")
+            pt_emb = model.encode(flat_prompts)
+            analyze_convex_hull_simple(pt_emb, "PersonaTeaming")
             '''
             # Random Stats
             stats_rand = get_top_k_data(persona_evaluations, args.top_k, 'random')
@@ -259,11 +319,6 @@ def main():
     print("-" * 40)
 
 
-    # 3. Compute Embeddings
-    print("\n[AI] Computing Embeddings (all-MiniLM-L6-v2)...")
-    model = SentenceTransformer('all-MiniLM-L6-v2')
-    ga_emb = model.encode(ga_prompts)
-    pt_emb = model.encode(persona_prompts)
     plot_fitness_distribution(ga_scores, persona_scores)
 
 if __name__ == "__main__":
