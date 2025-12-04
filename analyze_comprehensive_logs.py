@@ -7,7 +7,12 @@ import os
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 from nltk.tokenize import word_tokenize
 from pathlib import Path
-
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+from sklearn.manifold import TSNE
+from sklearn.metrics.pairwise import cosine_distances
+from sentence_transformers import SentenceTransformer
 # --- Helper Functions ---
 
 def load_comprehensive_log(log_path):
@@ -100,6 +105,79 @@ def compare_methods_diversity(persona_prompts, archive_prompts, sample_size=100,
         print(f"-> GrowingArchive is MORE DIVERSE by {abs(diff):.4f} points.")
     else:
         print("-> Both methods have equal diversity.")
+
+def calibrate_threshold(pt_embeddings, percentile=10):
+    """
+    Tìm threshold dựa trên độ phân tán nội bộ của PersonaTeaming.
+    Chúng ta muốn tìm ngưỡng khoảng cách của những cặp 'rất gần nhau' trong PT.
+    """
+    if len(pt_embeddings) < 2: return 0.2 # Fallback
+    
+    # Tính ma trận khoảng cách nội bộ
+    dists = cosine_distances(pt_embeddings)
+    
+    # Lấy tam giác trên (bỏ đường chéo 0)
+    n = len(pt_embeddings)
+    triu_indices = np.triu_indices(n, k=1)
+    internal_dists = dists[triu_indices]
+    
+    # Chọn ngưỡng:
+    # Cách 1 (Khắt khe): Trung bình khoảng cách nội bộ.
+    # mean_dist = np.mean(internal_dists) 
+    
+    # Cách 2 (Hợp lý hơn): Phân vị thứ 10 hoặc 20 (10th/20th percentile).
+    # Nghĩa là: "Khoảng cách này được coi là gần trong nội bộ PT".
+    # Tuy nhiên, để làm ngưỡng cho Blue Ocean (cần KHÁC BIỆT), ta nên lấy trung bình.
+    
+    # Theo kinh nghiệm, lấy mean là an toàn nhất.
+    suggested_threshold = float(np.mean(internal_dists))
+    
+    print(f"[Calibration] Internal Diversity of PT: {suggested_threshold:.4f}")
+    return suggested_threshold
+
+# --- 3. Vẽ Blue Ocean Map (Enhanced t-SNE) ---
+def visualize_blue_ocean(embeddings_ga, embeddings_pt, threshold=0.2, output_dir="."):
+    """
+    Vẽ t-SNE nhưng tô màu nổi bật những điểm 'Blue Ocean' của GA.
+    """
+    print("\n[Visualization] Generating Blue Ocean Map...")
+    
+    # 1. Tính toán điểm Blue Ocean
+    from sklearn.metrics.pairwise import cosine_distances
+    dists = cosine_distances(embeddings_ga, embeddings_pt)
+    min_dists = np.min(dists, axis=1)
+    
+    # Mask: True nếu là điểm độc lạ, False nếu trùng lặp
+    is_blue_ocean = min_dists > threshold
+    
+    # 2. Chạy t-SNE chung
+    all_emb = np.vstack([embeddings_pt, embeddings_ga])
+    tsne = TSNE(n_components=2, random_state=42, perplexity=30, init='pca', learning_rate='auto')
+    all_2d = tsne.fit_transform(all_emb)
+    
+    pt_2d = all_2d[:len(embeddings_pt)]
+    ga_2d = all_2d[len(embeddings_pt):]
+    
+    # 3. Vẽ
+    plt.figure(figsize=(10, 8))
+    
+    # Lớp 1: PersonaTeaming (Nền xám hoặc đỏ nhạt) - Để làm nền
+    plt.scatter(pt_2d[:, 0], pt_2d[:, 1], c='lightgray', label='PersonaTeaming (Baseline)', s=50, alpha=0.5)
+    
+    # Lớp 2: GrowingArchive (Trùng lặp) - Màu xanh bình thường
+    ga_normal = ga_2d[~is_blue_ocean]
+    plt.scatter(ga_normal[:, 0], ga_normal[:, 1], c='#1F9D89', label='GA (Overlapping)', s=50, alpha=0.6)
+    
+    # Lớp 3: GrowingArchive (Blue Ocean) - Màu vàng hoặc cam nổi bật
+    ga_novel = ga_2d[is_blue_ocean]
+    plt.scatter(ga_novel[:, 0], ga_novel[:, 1], c='#FFD700', label='GA (Blue Ocean / Novel)', s=100, edgecolors='black', marker='*')
+    
+    plt.title(f'Blue Ocean Discovery Map (Threshold={threshold})', fontsize=15)
+    plt.legend()
+    plt.grid(True, linestyle=':', alpha=0.3)
+    
+    plt.show()
+
 
 def find_log_files(directory):
     directory = Path(directory)
@@ -211,6 +289,18 @@ def main():
     print("-" * 40)
 
     compare_methods_diversity(persona_prompts, ga_prompts)
+
+    # 3. Compute Embeddings
+    print("\n[AI] Computing Embeddings (all-MiniLM-L6-v2)...")
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+    ga_emb = model.encode(ga_prompts)
+    pt_emb = model.encode(persona_prompts)
+
+    # 4. Calibrate Threshold
+    print("[AI] Calibrating comparison threshold...")
+    threshold = calibrate_threshold(pt_emb)
+    print(f" -> Auto-calibrated Threshold: {threshold:.4f} (based on PT internal diversity)")
+    visualize_blue_ocean(ga_emb, pt_emb, threshold)
 
 if __name__ == "__main__":
     main()
