@@ -43,68 +43,41 @@ def calculate_self_bleu(prompts_list, n=4):
 
     return np.mean(scores) if scores else 0.0
 
-def calculate_top_k_fitness_stats(evaluations, k=100, strategy='highest'):
-    """Tính điểm Fitness trung bình và độ lệch chuẩn."""
-    if not evaluations:
-        return {"mean": 0.0, "std": 0.0, "min": 0.0, "max": 0.0}
+def calculate_distinct_n(prompts_list, n=2):
+    """
+    (Bổ sung) Tính Distinct-N: Tỷ lệ N-gram độc nhất.
+    Metric này bổ trợ rất tốt cho Self-BLEU.
+    Cao = Tốt (Từ vựng phong phú).
+    """
+    if not prompts_list: return 0.0
+    ngrams_all = []
+    for p in prompts_list:
+        words = p.lower().split()
+        if len(words) < n: continue
+        ngrams_all.extend([tuple(words[i:i+n]) for i in range(len(words)-n+1)])
     
-    # Đảm bảo k là số nguyên và không vượt quá số lượng dữ liệu
+    if not ngrams_all: return 0.0
+    return len(set(ngrams_all)) / len(ngrams_all)
+
+
+
+def get_top_k_data(evaluations, k=100, strategy='highest'):
+    """Lấy Top-K theo fitness."""
+    if not evaluations: return []
     k = min(int(k), len(evaluations))
     
     if strategy == 'highest':
-        selected_evals = sorted(evaluations, key=lambda x: x.get('fitness', 0), reverse=True)[:k]
+        # Sort giảm dần và lấy K cái đầu
+        selected = sorted(evaluations, key=lambda x: x.get('fitness', 0), reverse=True)[:k]
     elif strategy == 'random':
-        selected_evals = random.sample(evaluations, k)
+        # (Ít dùng cho Self-BLEU Top-K nhưng vẫn giữ)
+        selected = random.sample(evaluations, k)
     else:
-        raise ValueError("Strategy must be 'highest' or 'random'")
+        return []
         
-    fitness_scores = [ev.get('fitness', 0) for ev in selected_evals]
-    
-    if not fitness_scores:
-        return {"mean": 0.0, "std": 0.0, "min": 0.0, "max": 0.0}
+    return selected
 
-    return {
-        "mean": float(np.mean(fitness_scores)),
-        "std": float(np.std(fitness_scores)),
-        "min": float(np.min(fitness_scores)),
-        "max": float(np.max(fitness_scores))
-    }
 
-def analyze_diversity_stability(all_prompts, method="Name", sample_size=100, num_iterations=10, n_gram=4):
-    """Bootstrap sampling để tính Diversity stability."""
-    actual_sample_size = min(sample_size, len(all_prompts))
-    if actual_sample_size == 0:
-        return {"mean": 0.0, "std": 0.0}
-
-    bleu_scores = []
-    print(f"--- Analyzing Diversity for {method} ---")
-    
-    for i in range(num_iterations):
-        sample = random.sample(all_prompts, actual_sample_size)
-        score = calculate_self_bleu(sample, n=n_gram)
-        bleu_scores.append(score)
-        
-    mean_score = np.mean(bleu_scores)
-    std_dev = np.std(bleu_scores)
-    
-    print(f"Result -> Mean Self-BLEU: {mean_score:.4f} | Std Dev: {std_dev:.4f}")
-    return {"name": method, "mean": mean_score, "std": std_dev}
-
-def compare_methods_diversity(persona_prompts, archive_prompts, sample_size=100, num_iterations=20):
-    stats_persona = analyze_diversity_stability(persona_prompts, "PersonaTeaming", sample_size, num_iterations)
-    stats_archive = analyze_diversity_stability(archive_prompts, "GrowingArchive", sample_size, num_iterations)
-    
-    print("\n====== COMPARISON CONCLUSION ======")
-    print(f"PersonaTeaming Mean Self-BLEU: {stats_persona['mean']:.4f} (±{stats_persona['std']:.4f})")
-    print(f"GrowingArchive Mean Self-BLEU: {stats_archive['mean']:.4f} (±{stats_archive['std']:.4f})")
-    
-    diff = stats_archive['mean'] - stats_persona['mean']
-    if diff > 0:
-        print(f"-> PersonaTeaming is MORE DIVERSE by {diff:.4f} points (Lower Self-BLEU is better).")
-    elif diff < 0:
-        print(f"-> GrowingArchive is MORE DIVERSE by {abs(diff):.4f} points.")
-    else:
-        print("-> Both methods have equal diversity.")
 
 def plot_fitness_distribution(scores_ga, scores_pt, output_filename="fitness_dist.png"):
     """
@@ -231,8 +204,14 @@ def main():
             
             print(f"[GrowingArchive] Loaded {len(ga_prompts)} prompts.")
             
-            stats = calculate_top_k_fitness_stats(ga_evaluations, args.top_k, 'highest')
-            print(f"GA Top-{args.top_k} Fitness: {stats['mean']:.4f} (±{stats['std']:.4f})")
+            stats = get_top_k_data(ga_evaluations, args.top_k, 'highest')
+            scores = [e['fitness'] for e in stats]
+            print(f"GA Top-{args.top_k} Fitness: {float(np.mean(scores)):.4f} (±{float(np.std(scores):.4f})")
+            flat_prompts = [e['prompt'] for e in stats]
+            diversity = calculate_self_bleu(flat_prompts)
+            print(f"GA Self-BLEU: {diversity:.4f}")
+            distinct_n = calculate_distinct_n(flat_prompts)
+            print(f"GA Distinct-2: {distinct_n:.4f}")
             
         except Exception as e:
             print(f"Error processing GA log: {e}")
@@ -261,19 +240,23 @@ def main():
             print(f"\n[PersonaTeaming] Loaded {len(persona_prompts)} prompts.")
             
             # Highest Stats
-            stats_high = calculate_top_k_fitness_stats(persona_evaluations, args.top_k, 'highest')
+            stats_high = get_top_k_data(persona_evaluations, args.top_k, 'highest')
             print(f"Persona Highest Top-{args.top_k} Fitness: {stats_high['mean']:.4f} (±{stats_high['std']:.4f})")
-            
+            scores = [e['fitness'] for e in stats_high]
+            diversity = calculate_self_bleu(persona_prompts)
+            print(f"Persona Self-BLEU: {diversity:.4f}")
+            distinct_n = calculate_distinct_n(persona_prompts)
+            print(f"Persona Distinct-2: {distinct_n:.4f}")
+            '''
             # Random Stats
-            stats_rand = calculate_top_k_fitness_stats(persona_evaluations, args.top_k, 'random')
+            stats_rand = get_top_k_data(persona_evaluations, args.top_k, 'random')
             print(f"Persona Random Top-{args.top_k} Fitness:  {stats_rand['mean']:.4f} (±{stats_rand['std']:.4f})")
-            
+            '''
         except Exception as e:
             print(f"Error processing Standard log: {e}")
     
     print("-" * 40)
 
-    compare_methods_diversity(persona_prompts, ga_prompts)
 
     # 3. Compute Embeddings
     print("\n[AI] Computing Embeddings (all-MiniLM-L6-v2)...")
@@ -284,3 +267,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
