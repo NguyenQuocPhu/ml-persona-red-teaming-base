@@ -257,7 +257,7 @@ def main():
                     for elite in list_of_elite:
                         ga_prompts.append(elite['prompt'])
                         ga_scores.append(elite['fitness'])
-                        ga_evaluations.append(elite['prompt'])
+                        ga_evaluations.append(elite)
             
             print(f"[GrowingArchive] Loaded {len(ga_prompts)} prompts.")
             
