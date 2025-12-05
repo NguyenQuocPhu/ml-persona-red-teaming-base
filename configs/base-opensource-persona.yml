@@ -64,10 +64,10 @@ threshold_bot: 0.6
 threshold_top: 0.8
 number_example_prompts: 2
 
-delta: 0.35
+delta: 0.3
 k_elites: 5
-n_cells: 50
-max_iters: 20
+n_cells: 200
+max_iters: 50
 sim_threshold: 0.6
 num_mutations: 10
 fitness_threshold: 0.6
