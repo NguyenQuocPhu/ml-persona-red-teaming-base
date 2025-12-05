@@ -235,6 +235,7 @@ def main():
         print(f"Error finding logs: {e}")
         return
     
+    centroids = []
     # 3. Compute Embeddings
     print("\n[AI] Computing Embeddings (all-MiniLM-L6-v2)...")
     model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -246,6 +247,7 @@ def main():
             ga_data = load_comprehensive_log(comprehensive_ga_log)
             
             ga_state = ga_data.get('ga_state', {})
+            centroids = ga_state.get('centroids', [])
             elites = ga_state.get('elites', {})
             
             ga_evaluations = []
@@ -321,6 +323,7 @@ def main():
 
 
     plot_fitness_distribution(ga_scores, persona_scores)
+    analyze_convex_hull_simple(centroids, "Centroids")
 
 if __name__ == "__main__":
     main()
