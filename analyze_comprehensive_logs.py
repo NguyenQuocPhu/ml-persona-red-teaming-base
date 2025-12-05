@@ -248,6 +248,8 @@ def main():
             
             ga_state = ga_data.get('ga_state', {})
             centroids = ga_state.get('centroids', [])
+            print(ga_state.get('n_centroids', 0))
+            print(f"#######################")
             elites = ga_state.get('elites', {})
             
             ga_evaluations = []
